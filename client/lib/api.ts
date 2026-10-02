@@ -71,11 +71,13 @@ export function installAuthFetchInterceptor() {
       typeof input === "string" ? input : ((input as any).url ?? String(input));
     const skip = shouldSkipAuth(url);
     const headers = new Headers(init.headers || {});
+    let hasAccessToken = false;
 
     try {
       if (!skip) {
         const { useAuthStore } = await import("@/stores/authStore");
         const token = useAuthStore.getState().accessToken;
+        hasAccessToken = Boolean(token);
         if (token && !headers.has("Authorization")) {
           headers.set("Authorization", `Bearer ${token}`);
         }
@@ -88,7 +90,8 @@ export function installAuthFetchInterceptor() {
           res.status === 403 ||
           res.status === 419 ||
           res.status === 498) &&
-        !skip
+        !skip &&
+        hasAccessToken
       ) {
         if (!refreshPromise) {
           const { useAuthStore } = await import("@/stores/authStore");
