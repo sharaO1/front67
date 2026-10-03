@@ -114,6 +114,7 @@
     "out_of_stock": "Нет в наличии",
     "low_stock": "Мало на складе",
     "stock_level": "Осталось: {{count}} · минимум: {{minimum}}",
+    "branch_stock_level": "Осталось: {{count}} · минимум: {{minimum}}",
     "new": "Новое",
     "view_inventory": "Открыть склад",
     "unknown_product": "Неизвестный товар"

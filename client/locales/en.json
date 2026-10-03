@@ -114,6 +114,7 @@
     "out_of_stock": "Out of stock",
     "low_stock": "Low stock",
     "stock_level": "{{count}} left · minimum {{minimum}}",
+    "branch_stock_level": "{{count}} left · minimum {{minimum}}",
     "new": "New",
     "view_inventory": "View inventory",
     "unknown_product": "Unknown product"

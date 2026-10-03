@@ -114,6 +114,7 @@
     "out_of_stock": "Дар анбор нест",
     "low_stock": "Моли анбор кам аст",
     "stock_level": "Боқӣ монд: {{count}} · ҳадди ақал: {{minimum}}",
+    "branch_stock_level": "Боқӣ монд: {{count}} · ҳадди ақал: {{minimum}}",
     "new": "Нав",
     "view_inventory": "Кушодани анбор",
     "unknown_product": "Моли номаълум"

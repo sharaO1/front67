@@ -47,6 +47,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { categoryNameToId, categoryIdToName } from "@/lib/categories";
+import { getBranchStockStatus } from "@/lib/inventoryStock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DetailCard from "@/components/DetailCard";
 import { useMemo, useEffect, useRef } from "react";
@@ -4643,6 +4644,10 @@ export default function Warehouse() {
                       const storeType = fi?.type
                         ? t(`filials.types.${fi.type}`)
                         : t("warehouse.unknown");
+                      const stockStatus = getBranchStockStatus(
+                        store.quantity,
+                        selectedProduct.minStock,
+                      );
                       const typeColor =
                         fi?.type === "warehouse"
                           ? "text-blue-600"
@@ -4668,6 +4673,22 @@ export default function Warehouse() {
                             </div>
                           </div>
                           <div className="text-right flex items-center gap-2">
+                            {stockStatus && (
+                              <Badge
+                                variant={
+                                  stockStatus === "out-of-stock"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                className={
+                                  stockStatus === "low-stock"
+                                    ? "border-amber-500 text-amber-700 dark:text-amber-400"
+                                    : ""
+                                }
+                              >
+                                {t(`warehouse.${stockStatus.replace("-", "_")}`)}
+                              </Badge>
+                            )}
                             <div
                               className={`text-xs px-1 py-0.5 rounded bg-muted/50 ${typeColor}`}
                             >
