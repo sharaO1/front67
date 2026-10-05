@@ -355,6 +355,8 @@
     "all_time_revenue": "Доход за все время",
     "add_new_client": "Добавить нового клиента",
     "create_client_profile": "Создайте новый профиль клиента с контактной и деловой информацией.",
+    "contact_information": "Контактная информация",
+    "account_details": "Данные учетной записи",
     "company_name": "Полное имя / Название компании",
     "enter_client_name": "Введите имя клиента",
     "client_email": "client@email.com",

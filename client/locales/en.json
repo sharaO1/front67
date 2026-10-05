@@ -355,6 +355,8 @@
     "all_time_revenue": "All-time revenue",
     "add_new_client": "Add New Client",
     "create_client_profile": "Create a new client profile with contact and business information.",
+    "contact_information": "Contact information",
+    "account_details": "Account details",
     "company_name": "Full Name / Company Name",
     "enter_client_name": "Enter client name",
     "client_email": "client@email.com",

@@ -47,6 +47,7 @@ import {
   Phone,
   Mail,
   CreditCard,
+  Loader2,
   AlertTriangle,
   Eye,
   Send,
@@ -82,6 +83,7 @@ export default function Clients() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAddingClient, setIsAddingClient] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -245,6 +247,8 @@ export default function Clients() {
   };
 
   const handleAddClient = async () => {
+    if (isAddingClient) return;
+
     if (!newClient.name || !newClient.email || !newClient.phone) {
       toast({
         title: t("common.error"),
@@ -254,6 +258,7 @@ export default function Clients() {
       return;
     }
 
+    setIsAddingClient(true);
     try {
       const response = await fetch(`${API_BASE}/clients`, {
         method: "POST",
@@ -317,6 +322,8 @@ export default function Clients() {
         description: error?.message || t("common.error"),
         variant: "destructive",
       });
+    } finally {
+      setIsAddingClient(false);
     }
   };
 
@@ -440,126 +447,141 @@ export default function Clients() {
               {t("clients.add_client")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{t("clients.add_new_client")}</DialogTitle>
-              <DialogDescription>
-                {t("clients.create_client_profile")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("clients.company_name")} *</Label>
-                <Input
-                  id="name"
-                  placeholder={t("clients.enter_client_name")}
-                  value={newClient.name}
-                  onChange={(e) =>
-                    setNewClient({ ...newClient, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">{t("common.email")} *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={t("clients.client_email")}
-                  value={newClient.email}
-                  onChange={(e) =>
-                    setNewClient({ ...newClient, email: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">{t("common.phone")} *</Label>
-                <Input
-                  id="phone"
-                  placeholder={t("clients.phone_number")}
-                  value={newClient.phone}
-                  onChange={(e) =>
-                    setNewClient({ ...newClient, phone: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">{t("common.address")}</Label>
-                <Textarea
-                  id="address"
-                  placeholder={t("clients.full_address")}
-                  value={newClient.address}
-                  onChange={(e) =>
-                    setNewClient({ ...newClient, address: e.target.value })
-                  }
-                  rows={2}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DialogContent className="flex w-[calc(100vw-1rem)] max-w-md max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden p-0 sm:w-full sm:gap-4 sm:p-6">
+            <div className="shrink-0 border-b px-4 py-4 pr-12 sm:border-0 sm:p-0">
+              <DialogHeader className="text-left">
+                <DialogTitle>{t("clients.add_new_client")}</DialogTitle>
+                <DialogDescription>
+                  {t("clients.create_client_profile")}
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-0 sm:py-0">
+              <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+                <h3 className="text-sm font-semibold">{t("clients.contact_information")}</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="type">{t("clients.client_type")}</Label>
-                  <Select
-                    value={newClient.type}
-                    onValueChange={(value) =>
-                      setNewClient({ ...newClient, type: value as any })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="retail">
-                        {t("clients.retail")}
-                      </SelectItem>
-                      <SelectItem value="wholesale">
-                        {t("clients.wholesale")}
-                      </SelectItem>
-                      <SelectItem value="distributor">
-                        {t("clients.distributor")}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="creditLimit">
-                    {t("clients.credit_limit")}
-                  </Label>
+                  <Label htmlFor="name">{t("clients.company_name")} *</Label>
                   <Input
-                    id="creditLimit"
-                    type="number"
-                    placeholder="1000"
-                    value={newClient.creditLimit}
+                    id="name"
+                    placeholder={t("clients.enter_client_name")}
+                    value={newClient.name}
                     onChange={(e) =>
-                      setNewClient({
-                        ...newClient,
-                        creditLimit: parseInt(e.target.value) || 0,
-                      })
+                      setNewClient({ ...newClient, name: e.target.value })
                     }
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">{t("common.notes")}</Label>
-                <Textarea
-                  id="notes"
-                  placeholder={t("clients.additional_notes")}
-                  value={newClient.notes}
-                  onChange={(e) =>
-                    setNewClient({ ...newClient, notes: e.target.value })
-                  }
-                  rows={2}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={handleAddClient}>
-                  {t("clients.add_client")}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAddDialogOpen(false)}
-                >
-                  {t("common.cancel")}
-                </Button>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">{t("common.email")} *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder={t("clients.client_email")}
+                    value={newClient.email}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, email: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">{t("common.phone")} *</Label>
+                  <Input
+                    id="phone"
+                    placeholder={t("clients.phone_number")}
+                    value={newClient.phone}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, phone: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">{t("common.address")}</Label>
+                  <Textarea
+                    id="address"
+                    placeholder={t("clients.full_address")}
+                    value={newClient.address}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, address: e.target.value })
+                    }
+                    rows={2}
+                  />
+                </div>
+              </section>
+              <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+                <h3 className="text-sm font-semibold">{t("clients.account_details")}</h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="type">{t("clients.client_type")}</Label>
+                    <Select
+                      value={newClient.type}
+                      onValueChange={(value) =>
+                        setNewClient({ ...newClient, type: value as any })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="retail">
+                          {t("clients.retail")}
+                        </SelectItem>
+                        <SelectItem value="wholesale">
+                          {t("clients.wholesale")}
+                        </SelectItem>
+                        <SelectItem value="distributor">
+                          {t("clients.distributor")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="creditLimit">
+                      {t("clients.credit_limit")}
+                    </Label>
+                    <Input
+                      id="creditLimit"
+                      type="number"
+                      placeholder="1000"
+                      value={newClient.creditLimit}
+                      onChange={(e) =>
+                        setNewClient({
+                          ...newClient,
+                          creditLimit: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">{t("common.notes")}</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder={t("clients.additional_notes")}
+                    value={newClient.notes}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, notes: e.target.value })
+                    }
+                    rows={2}
+                  />
+                </div>
+              </section>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 border-t bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:flex-row sm:justify-end sm:border-0 sm:p-0">
+              <Button
+                className="min-h-11 w-full sm:w-auto sm:min-w-40"
+                onClick={handleAddClient}
+                disabled={isAddingClient}
+              >
+                {isAddingClient && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isAddingClient ? t("common.loading") : t("clients.add_client")}
+              </Button>
+              <Button
+                variant="outline"
+                className="min-h-11 w-full sm:w-auto"
+                onClick={() => setIsAddDialogOpen(false)}
+                disabled={isAddingClient}
+              >
+                {t("common.cancel")}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
