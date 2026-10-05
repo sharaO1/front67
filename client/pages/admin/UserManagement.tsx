@@ -56,9 +56,11 @@ import {
   UserCheck,
   UserX,
   Ban,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { joinApi } from "@/lib/api";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PaginationControls } from "@/components/ui/pagination";
 
@@ -97,6 +99,39 @@ export default function UserManagement() {
   }, [loadUsers, toast]);
 
   const authUser = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const [filialNames, setFilialNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let mounted = true;
+    fetch(joinApi("/filials"), {
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!mounted || !data?.ok || !Array.isArray(data.result)) return;
+        setFilialNames(
+          data.result.reduce((names: Record<string, string>, filial: any) => {
+            const id = filial.id ?? filial.filialId ?? filial.storeId ?? filial.branchId;
+            const name = filial.name ?? filial.title ?? filial.filialName ?? filial.storeName ?? filial.branchName;
+            if (id != null && name) names[String(id)] = String(name);
+            return names;
+          }, {}),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [accessToken]);
+
+  const getUserBranchName = (user: RBACUser) =>
+    user.filialName ||
+    (user.filialId && filialNames[String(user.filialId)]) ||
+    (user.filialId ? String(user.filialId) : "-");
+
   const scopedUsers =
     authUser?.role === "manager" && authUser?.filialId
       ? users.filter((u) => (u as any).filialId === authUser.filialId)
@@ -110,7 +145,8 @@ export default function UserManagement() {
     (user) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchQuery.toLowerCase()),
+      user.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getUserBranchName(user).toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const paginatedUsers = filteredUsers.slice((userPage - 1) * 10, userPage * 10);
@@ -350,6 +386,10 @@ export default function UserManagement() {
                         {user.department ? (
                           <Badge variant="outline">{user.department}</Badge>
                         ) : null}
+                        <Badge variant="outline" className="max-w-full gap-1">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{getUserBranchName(user)}</span>
+                        </Badge>
                         <div className="ml-auto">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -460,6 +500,7 @@ export default function UserManagement() {
                         <TableHead>
                           {t("admin.users.table.department")}
                         </TableHead>
+                        <TableHead>{t("admin.users.create.labels.work_location")}</TableHead>
                         <TableHead>{t("admin.users.table.status")}</TableHead>
                         <TableHead className="text-right">
                           {t("admin.users.table.actions")}
@@ -498,6 +539,12 @@ export default function UserManagement() {
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5 text-sm">
+                              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                              {getUserBranchName(user)}
+                            </span>
                           </TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
                           <TableCell className="text-right">
