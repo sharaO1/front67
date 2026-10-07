@@ -111,11 +111,33 @@ export default function UserManagement() {
     })
       .then((response) => response.json())
       .then((data) => {
-        if (!mounted || !data?.ok || !Array.isArray(data.result)) return;
+        if (!mounted) return;
+        const filials = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.result)
+            ? data.result
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
         setFilialNames(
-          data.result.reduce((names: Record<string, string>, filial: any) => {
-            const id = filial.id ?? filial.filialId ?? filial.storeId ?? filial.branchId;
-            const name = filial.name ?? filial.title ?? filial.filialName ?? filial.storeName ?? filial.branchName;
+          filials.reduce((names: Record<string, string>, filial: any) => {
+            const id =
+              filial.id ??
+              filial.filialId ??
+              filial.filial_id ??
+              filial.storeId ??
+              filial.store_id ??
+              filial.branchId ??
+              filial.branch_id;
+            const name =
+              filial.name ??
+              filial.title ??
+              filial.filialName ??
+              filial.filial_name ??
+              filial.storeName ??
+              filial.store_name ??
+              filial.branchName ??
+              filial.branch_name;
             if (id != null && name) names[String(id)] = String(name);
             return names;
           }, {}),
