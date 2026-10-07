@@ -1922,15 +1922,6 @@ export default function Employees() {
         </div>
       </div>
 
-      <Button
-        size="icon-lg"
-        className="fixed right-4 bottom-24 z-40 h-14 w-14 rounded-full shadow-business-lg lg:hidden"
-        aria-label={t("employees.add_employee") as string}
-        onClick={() => setIsAddEmployeeOpen(true)}
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
-
       {/* Mobile-optimized overview cards */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <Card>
