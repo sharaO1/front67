@@ -1954,16 +1954,6 @@ ${data.transactions
         </div>
       </div>
 
-      {/* Mobile primary action */}
-      <Button
-        size="icon-lg"
-        className="fixed right-4 bottom-24 z-40 h-14 w-14 rounded-full shadow-business-lg lg:hidden"
-        aria-label={t("finance.add_transaction") as string}
-        onClick={() => setIsAddTransactionOpen(true)}
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
-
       {/* Financial Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
