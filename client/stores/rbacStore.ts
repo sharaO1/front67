@@ -321,6 +321,51 @@ export const useRBACStore = create<RBACState>()(
               [u.firstname, u.lastname].filter(Boolean).join(" ").trim() ||
               u.name ||
               u.email;
+            const rawFilial =
+              u.filial ??
+              u.branch ??
+              u.store ??
+              u.location ??
+              u.workLocation ??
+              u.work_location;
+            const filialId =
+              u.filialId ??
+              u.filialID ??
+              u.filial_id ??
+              u.storeId ??
+              u.store_id ??
+              u.branchId ??
+              u.branch_id ??
+              u.locationId ??
+              u.location_id ??
+              u.workLocationId ??
+              u.work_location_id ??
+              (rawFilial && typeof rawFilial === "object"
+                ? rawFilial.id ??
+                  rawFilial.filialId ??
+                  rawFilial.filial_id ??
+                  rawFilial.storeId ??
+                  rawFilial.branchId
+                : undefined);
+            const filialName =
+              u.filialName ??
+              u.filial_name ??
+              u.locationName ??
+              u.location_name ??
+              u.storeName ??
+              u.store_name ??
+              u.branchName ??
+              u.branch_name ??
+              (typeof rawFilial === "string"
+                ? rawFilial
+                : rawFilial && typeof rawFilial === "object"
+                  ? rawFilial.name ??
+                    rawFilial.title ??
+                    rawFilial.filialName ??
+                    rawFilial.filial_name ??
+                    rawFilial.storeName ??
+                    rawFilial.branchName
+                  : undefined);
             return {
               id: u.id,
               email: u.email,
@@ -328,24 +373,9 @@ export const useRBACStore = create<RBACState>()(
               role,
               permissions: ROLE_PERMISSIONS[role],
               department: u.department || undefined,
-              filialId:
-                u.filialId ??
-                u.filialID ??
-                u.storeId ??
-                u.branchId ??
-                u.locationId ??
-                undefined,
+              filialId: filialId == null ? undefined : String(filialId),
               filialName:
-                (typeof u.filialName === "string" && u.filialName) ||
-                (typeof u.location === "string" && u.location) ||
-                (typeof u.locationName === "string" && u.locationName) ||
-                (typeof u.storeName === "string" && u.storeName) ||
-                (typeof u.branchName === "string" && u.branchName) ||
-                (typeof u.filial === "string" && u.filial) ||
-                (u.filial &&
-                  typeof u.filial === "object" &&
-                  (u.filial.name || u.filial.title)) ||
-                undefined,
+                typeof filialName === "string" ? filialName : undefined,
               avatar: pickAvatar(u),
               status:
                 (u.status?.toLowerCase?.() as RBACUser["status"]) || "active",

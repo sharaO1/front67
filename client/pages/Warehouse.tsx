@@ -47,6 +47,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { categoryNameToId, categoryIdToName } from "@/lib/categories";
+import { getBranchStockStatus } from "@/lib/inventoryStock";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DetailCard from "@/components/DetailCard";
 import { useMemo, useEffect, useRef } from "react";
@@ -67,6 +68,7 @@ import {
   TrendingDown,
   ArrowUp,
   ArrowDown,
+  Loader2,
   History,
   Calendar,
   User,
@@ -539,6 +541,7 @@ export default function Warehouse() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isStockInDialogOpen, setIsStockInDialogOpen] = useState(false);
@@ -2130,7 +2133,11 @@ export default function Warehouse() {
   };
 
   const addProduct = async () => {
-    if (!newProduct.name || !newProduct.category || !newProduct.sku) {
+    if (isAddingProduct) return;
+    const name = newProduct.name?.trim();
+    const sku = newProduct.sku?.trim();
+    const category = newProduct.category?.trim();
+    if (!name || !category || !sku) {
       toast({
         title: t("common.error"),
         description: t("warehouse.required_fields_error"),
@@ -2140,11 +2147,12 @@ export default function Warehouse() {
     }
 
     try {
+      setIsAddingProduct(true);
       const payload: any = {
-        name: newProduct.name!,
+        name,
         description: newProduct.description || "",
         brand: newProduct.brand || "",
-        sku: newProduct.sku!,
+        sku,
         minStock: newProduct.minStock || 0,
         maxStock: newProduct.maxStock || 0,
         costPrice: newProduct.costPrice || 0,
@@ -2157,7 +2165,7 @@ export default function Warehouse() {
               : [],
         location: newProduct.location || "",
         expiryDate: newProduct.expiryDate || null,
-        categoryId: categoryNameToId(newProduct.category || ""),
+        categoryId: categoryNameToId(category),
       };
 
       const headers: Record<string, string> = {
@@ -2194,10 +2202,10 @@ export default function Warehouse() {
 
       const product: Product = {
         id: String(r.id || Date.now()),
-        name: newProduct.name!,
-        category: newProduct.category!,
+        name,
+        category,
         brand: newProduct.brand || "",
-        sku: newProduct.sku!,
+        sku,
         description: newProduct.description || "",
         quantity: newProduct.quantity || 0,
         stores: [],
@@ -2284,6 +2292,8 @@ export default function Warehouse() {
         description: error.message || "Something went wrong",
         variant: "destructive",
       });
+    } finally {
+      setIsAddingProduct(false);
     }
   };
 
@@ -2556,18 +2566,22 @@ export default function Warehouse() {
                 </Button>
               </DialogTrigger>
               <DialogContent
-                className="max-w-2xl"
+                className="flex w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden p-0 sm:w-full sm:gap-4 sm:p-6"
                 onPointerDownOutside={(e) => e.preventDefault()}
                 onEscapeKeyDown={(e) => e.preventDefault()}
               >
-                <DialogHeader>
-                  <DialogTitle>{t("warehouse.add_new_product")}</DialogTitle>
-                  <DialogDescription>
-                    {t("warehouse.enter_product_details")}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="border-b px-4 py-4 pr-12 sm:border-0 sm:p-0">
+                  <DialogHeader className="text-left">
+                    <DialogTitle>{t("warehouse.add_new_product")}</DialogTitle>
+                    <DialogDescription>
+                      {t("warehouse.enter_product_details")}
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-0 sm:py-0">
+                  <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+                    <h3 className="text-sm font-semibold">{t("warehouse.basic_information")}</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="name">
                         {t("warehouse.product_name")} *
@@ -2657,7 +2671,10 @@ export default function Warehouse() {
                       }
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  </section>
+                  <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+                    <h3 className="text-sm font-semibold">{t("warehouse.inventory_and_pricing")}</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="minStock">
                         {t("warehouse.min_stock")}
@@ -2731,7 +2748,10 @@ export default function Warehouse() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  </section>
+                  <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+                    <h3 className="text-sm font-semibold">{t("warehouse.supplier_and_location")}</h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="supplier">
                         {t("warehouse.suppliers")}
@@ -2763,7 +2783,7 @@ export default function Warehouse() {
                             </span>
                           ))}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <Input
                             id="supplier"
                             placeholder={t(
@@ -2791,6 +2811,7 @@ export default function Warehouse() {
                           />
                           <Button
                             variant="default"
+                            className="min-h-11 w-full sm:w-auto"
                             onClick={() => {
                               const v = supplierInput.trim();
                               if (!v) return;
@@ -2825,33 +2846,41 @@ export default function Warehouse() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expiryDate">
-                      {t("warehouse.expiry_date")}
-                    </Label>
-                    <Input
-                      id="expiryDate"
-                      type="date"
-                      value={newProduct.expiryDate || ""}
-                      onChange={(e) =>
-                        setNewProduct({
-                          ...newProduct,
-                          expiryDate: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button className="flex-1" onClick={addProduct}>
-                      {t("warehouse.add_product")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsAddDialogOpen(false)}
-                    >
-                      {t("common.cancel")}
-                    </Button>
-                  </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="expiryDate">
+                        {t("warehouse.expiry_date")}
+                      </Label>
+                      <Input
+                        id="expiryDate"
+                        type="date"
+                        value={newProduct.expiryDate || ""}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            expiryDate: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </section>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 border-t bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:flex-row sm:justify-end sm:border-0 sm:p-0">
+                  <Button
+                    className="min-h-11 w-full sm:w-auto sm:min-w-40"
+                    onClick={addProduct}
+                    disabled={isAddingProduct}
+                  >
+                    {isAddingProduct && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isAddingProduct ? t("common.loading") : t("warehouse.add_product")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="min-h-11 w-full sm:w-auto"
+                    onClick={() => setIsAddDialogOpen(false)}
+                    disabled={isAddingProduct}
+                  >
+                    {t("common.cancel")}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -3787,17 +3816,21 @@ export default function Warehouse() {
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent
-          className="max-w-2xl"
+          className="flex w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden p-0 sm:w-full sm:gap-4 sm:p-6"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <DialogHeader>
-            <DialogTitle>{t("warehouse.edit_product")}</DialogTitle>
-            <DialogDescription>
-              {t("warehouse.update_product_info")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
+          <div className="shrink-0 border-b px-4 py-4 pr-12 sm:border-0 sm:p-0">
+            <DialogHeader className="text-left">
+              <DialogTitle>{t("warehouse.edit_product")}</DialogTitle>
+              <DialogDescription>
+                {t("warehouse.update_product_info")}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-0 sm:py-0">
+            <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+              <h3 className="text-sm font-semibold">{t("warehouse.basic_information")}</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="editName">
@@ -3876,6 +3909,9 @@ export default function Warehouse() {
                 }
               />
             </div>
+            </section>
+            <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+              <h3 className="text-sm font-semibold">{t("warehouse.inventory_and_pricing")}</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="editMinStock">{t("warehouse.min_stock")}</Label>
@@ -3946,6 +3982,9 @@ export default function Warehouse() {
                 />
               </div>
             </div>
+            </section>
+            <section className="space-y-4 rounded-xl border bg-card p-3 sm:p-4">
+              <h3 className="text-sm font-semibold">{t("warehouse.supplier_and_location")}</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="editSupplier">{t("warehouse.suppliers")}</Label>
@@ -3971,7 +4010,7 @@ export default function Warehouse() {
                       </span>
                     ))}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Input
                       id="editSupplier"
                       placeholder={t("warehouse.add_supplier_placeholder")}
@@ -3994,6 +4033,7 @@ export default function Warehouse() {
                     />
                     <Button
                       variant="default"
+                      className="min-h-11 w-full sm:w-auto"
                       onClick={() => {
                         const v = editSupplierInput.trim();
                         if (!v) return;
@@ -4023,12 +4063,15 @@ export default function Warehouse() {
                 />
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={editProduct}>
+            </section>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 border-t bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:flex-row sm:justify-end sm:border-0 sm:p-0">
+              <Button className="min-h-11 w-full sm:w-auto sm:min-w-40" onClick={editProduct}>
                 {t("warehouse.update_product")}
               </Button>
               <Button
                 variant="outline"
+                className="min-h-11 w-full sm:w-auto"
                 onClick={() => {
                   setIsEditDialogOpen(false);
                   setEditingProduct(null);
@@ -4036,7 +4079,6 @@ export default function Warehouse() {
               >
                 {t("common.cancel")}
               </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -4643,6 +4685,10 @@ export default function Warehouse() {
                       const storeType = fi?.type
                         ? t(`filials.types.${fi.type}`)
                         : t("warehouse.unknown");
+                      const stockStatus = getBranchStockStatus(
+                        store.quantity,
+                        selectedProduct.minStock,
+                      );
                       const typeColor =
                         fi?.type === "warehouse"
                           ? "text-blue-600"
@@ -4668,6 +4714,22 @@ export default function Warehouse() {
                             </div>
                           </div>
                           <div className="text-right flex items-center gap-2">
+                            {stockStatus && (
+                              <Badge
+                                variant={
+                                  stockStatus === "out-of-stock"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                className={
+                                  stockStatus === "low-stock"
+                                    ? "border-amber-500 text-amber-700 dark:text-amber-400"
+                                    : ""
+                                }
+                              >
+                                {t(`warehouse.${stockStatus.replace("-", "_")}`)}
+                              </Badge>
+                            )}
                             <div
                               className={`text-xs px-1 py-0.5 rounded bg-muted/50 ${typeColor}`}
                             >

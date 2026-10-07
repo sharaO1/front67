@@ -103,6 +103,10 @@
     "settings": "Настройки",
     "filials": "Филиалы"
   },
+  "ai_chat": {
+    "welcome": "Здравствуйте! Добро пожаловать в помощник по управлению складом и бизнесом. Чем я могу вам сегодня помочь?",
+    "connection_failure": "Не удалось подключиться к сети. Проверьте подключение к Интернету."
+  },
   "notifications": {
     "open": "Открыть уведомления",
     "title": "Уведомления",
@@ -114,6 +118,7 @@
     "out_of_stock": "Нет в наличии",
     "low_stock": "Мало на складе",
     "stock_level": "Осталось: {{count}} · минимум: {{minimum}}",
+    "branch_stock_level": "Осталось: {{count}} · минимум: {{minimum}}",
     "new": "Новое",
     "view_inventory": "Открыть склад",
     "unknown_product": "Неизвестный товар"
@@ -194,6 +199,9 @@
     "books": "Книги",
     "add_new_product": "Добавить новый товар",
     "enter_product_details": "Введите детали нового товара.",
+    "basic_information": "Информация о товаре",
+    "inventory_and_pricing": "Запасы и цены",
+    "supplier_and_location": "Поставщик и расположение",
     "enter_product_name": "Введите название товара",
     "select_category": "Выберите категорию",
     "enter_brand_name": "Введите название бренда",
@@ -351,6 +359,8 @@
     "all_time_revenue": "Доход за все время",
     "add_new_client": "Добавить нового клиента",
     "create_client_profile": "Создайте новый профиль клиента с контактной и деловой информацией.",
+    "contact_information": "Контактная информация",
+    "account_details": "Данные учетной записи",
     "company_name": "Полное имя / Название компании",
     "enter_client_name": "Введите имя клиента",
     "client_email": "client@email.com",

@@ -103,6 +103,10 @@
     "settings": "Settings",
     "filials": "Filials"
   },
+  "ai_chat": {
+    "welcome": "Hello! Welcome to your warehouse and business assistant. How can I help you today?",
+    "connection_failure": "Failed to connect to the network. Please check your internet connection."
+  },
   "notifications": {
     "open": "Open notifications",
     "title": "Notifications",
@@ -114,6 +118,7 @@
     "out_of_stock": "Out of stock",
     "low_stock": "Low stock",
     "stock_level": "{{count}} left · minimum {{minimum}}",
+    "branch_stock_level": "{{count}} left · minimum {{minimum}}",
     "new": "New",
     "view_inventory": "View inventory",
     "unknown_product": "Unknown product"
@@ -194,6 +199,9 @@
     "books": "Books",
     "add_new_product": "Add New Product",
     "enter_product_details": "Enter the details for the new product.",
+    "basic_information": "Product information",
+    "inventory_and_pricing": "Stock and pricing",
+    "supplier_and_location": "Supplier and location",
     "enter_product_name": "Enter product name",
     "select_category": "Select category",
     "enter_brand_name": "Enter brand name",
@@ -351,6 +359,8 @@
     "all_time_revenue": "All-time revenue",
     "add_new_client": "Add New Client",
     "create_client_profile": "Create a new client profile with contact and business information.",
+    "contact_information": "Contact information",
+    "account_details": "Account details",
     "company_name": "Full Name / Company Name",
     "enter_client_name": "Enter client name",
     "client_email": "client@email.com",

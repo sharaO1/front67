@@ -308,9 +308,10 @@ export default function Sales() {
   const [scannerStatus, setScannerStatus] = useState<
     "starting" | "scanning" | "unsupported" | "denied" | "insecure" | "error"
   >("starting");
-  const [scannerAttempt, setScannerAttempt] = useState(0);
   const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
+  const scannerRequestRef = useRef(0);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const barcodeScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -319,36 +320,82 @@ export default function Sales() {
   const productSelectTriggerRef = useRef<HTMLButtonElement | null>(null);
   const scanQuantityRef = useRef(1);
   const lastCameraScanRef = useRef<{ code: string; at: number } | null>(null);
-  const autoScanStartedRef = useRef(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [scanQuantity, setScanQuantity] = useState(1);
   const [scannerMode, setScannerMode] = useState<"camera" | "manual">("camera");
   const [manualProductSearch, setManualProductSearch] = useState("");
 
-  const restoreInteractionState = () => {
-    document.body.style.pointerEvents = "";
-    document.body.style.overflow = "";
-    document.documentElement.style.overflow = "";
-    (document.activeElement as HTMLElement | null)?.blur?.();
+  const stopCameraScanner = () => {
+    scannerRequestRef.current += 1;
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    scannerStreamRef.current = null;
+    setCameraStream(null);
+    if (scannerVideoRef.current) {
+      scannerVideoRef.current.pause();
+      scannerVideoRef.current.srcObject = null;
+    }
   };
 
-  const restoreInteractionAfterClose = () => {
-    restoreInteractionState();
-    window.setTimeout(restoreInteractionState, 0);
-    window.setTimeout(restoreInteractionState, 350);
+  const closeScanner = () => {
+    stopCameraScanner();
+    setIsScannerOpen(false);
+  };
+
+  const openManualSearch = () => {
+    stopCameraScanner();
+    setScannerMode("manual");
+    setManualProductSearch("");
+    setIsScannerOpen(true);
+  };
+
+  const startCameraScanner = async () => {
+    stopCameraScanner();
+    const requestId = scannerRequestRef.current;
+    setScannerMode("camera");
+    setScannerStatus("starting");
+    setIsScannerOpen(true);
+
+    if (!window.isSecureContext) {
+      setScannerStatus("insecure");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerStatus("unsupported");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      if (requestId !== scannerRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      scannerStreamRef.current = stream;
+      setCameraStream(stream);
+    } catch (error) {
+      if (requestId === scannerRequestRef.current) {
+        setScannerStatus(
+          error instanceof DOMException && error.name === "NotAllowedError"
+            ? "denied"
+            : "error",
+        );
+      }
+    }
   };
 
   const handleCreateDialogOpenChange = (open: boolean) => {
     setIsCreateDialogOpen(open);
-    if (!open) {
-      setIsScannerOpen(false);
-      restoreInteractionAfterClose();
-    }
+    if (!open) closeScanner();
   };
 
   const closeExportLayers = () => {
     setExportMenuOpen(false);
     setIsPdfDialogOpen(false);
-    restoreInteractionState();
   };
 
   // Real clients/products will be loaded from backend
@@ -468,14 +515,13 @@ export default function Sales() {
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
 
+  const handleBarcodeScannedRef = useRef(handleBarcodeScanned);
+  handleBarcodeScannedRef.current = handleBarcodeScanned;
+
   useEffect(() => {
-    if (!isScannerOpen || scannerMode !== "camera") {
-      scannerControlsRef.current?.stop();
-      scannerControlsRef.current = null;
-      if (scannerVideoRef.current) {
-        scannerVideoRef.current.pause();
-        scannerVideoRef.current.srcObject = null;
-      }
+    const video = scannerVideoRef.current;
+    const stream = cameraStream;
+    if (!isScannerOpen || scannerMode !== "camera" || !stream || !video) {
       return;
     }
 
@@ -483,85 +529,58 @@ export default function Sales() {
     const reader = new BrowserMultiFormatReader();
     lastCameraScanRef.current = null;
 
-    const startScanner = async () => {
-      if (!window.isSecureContext) {
-        setScannerStatus("insecure");
-        return;
-      }
+    reader
+      .decodeFromStream(stream, video, (result) => {
+        const value = result?.getText().trim();
+        if (cancelled || !value) return;
 
-      if (!navigator.mediaDevices?.getUserMedia || !scannerVideoRef.current) {
-        setScannerStatus("unsupported");
-        return;
-      }
+        const now = Date.now();
+        const lastScan = lastCameraScanRef.current;
+        if (lastScan?.code === value && now - lastScan.at < 1200) return;
 
-      try {
-        const controls = await reader.decodeFromConstraints(
-          {
-            video: { facingMode: { ideal: "environment" } },
-            audio: false,
-          },
-          scannerVideoRef.current,
-          (result) => {
-            const value = result?.getText().trim();
-            if (cancelled || !value) return;
-
-            const now = Date.now();
-            const lastScan = lastCameraScanRef.current;
-            if (lastScan?.code === value && now - lastScan.at < 1200) return;
-
-            lastCameraScanRef.current = { code: value, at: now };
-            handleBarcodeScanned(value, true, scanQuantityRef.current);
-            scanQuantityRef.current = 1;
-            setScanQuantity(1);
-          },
-        );
+        lastCameraScanRef.current = { code: value, at: now };
+        handleBarcodeScannedRef.current(value, true, scanQuantityRef.current);
+        scanQuantityRef.current = 1;
+        setScanQuantity(1);
+      })
+      .then((controls) => {
         if (cancelled) {
           controls.stop();
           return;
         }
         scannerControlsRef.current = controls;
         setScannerStatus("scanning");
-      } catch (error) {
-        if (!cancelled) {
-          setScannerStatus(
-            error instanceof DOMException && error.name === "NotAllowedError"
-              ? "denied"
-              : "error",
-          );
-        }
-      }
-    };
+      })
+      .catch(() => {
+        if (!cancelled) setScannerStatus("error");
+      });
 
-    startScanner();
     return () => {
       cancelled = true;
       scannerControlsRef.current?.stop();
       scannerControlsRef.current = null;
-      if (scannerVideoRef.current) {
-        scannerVideoRef.current.pause();
-        scannerVideoRef.current.srcObject = null;
-      }
+      stream.getTracks().forEach((track) => track.stop());
+      if (scannerStreamRef.current === stream) scannerStreamRef.current = null;
+      video.pause();
+      video.srcObject = null;
     };
-  }, [isScannerOpen, scannerMode, scannerAttempt, handleBarcodeScanned]);
+  }, [cameraStream, isScannerOpen, scannerMode]);
 
-  // Reset form state when dialog closes, and focus body when dialog opens to enable barcode scanning
+  useEffect(
+    () => () => {
+      scannerRequestRef.current += 1;
+      scannerControlsRef.current?.stop();
+      scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
+
+  // Reset form state when the invoice drawer closes.
   useEffect(() => {
     if (!isCreateDialogOpen) {
       clearNewInvoice();
-      autoScanStartedRef.current = false;
-      setIsScannerOpen(false);
-      const cleanupTimer = window.setTimeout(restoreInteractionAfterClose, 0);
-      return () => window.clearTimeout(cleanupTimer);
-    }
-
-    if (isMobile && !autoScanStartedRef.current) {
-      autoScanStartedRef.current = true;
-      scanQuantityRef.current = 1;
-      setScanQuantity(1);
-      setScannerMode("camera");
-      setManualProductSearch("");
-      setScannerStatus("starting");
-      setIsScannerOpen(true);
+      closeScanner();
+      return;
     }
 
     const focusTimer = window.setTimeout(() => {
@@ -1907,12 +1926,10 @@ export default function Sales() {
       };
 
       setInvoices([invoice, ...invoices]);
-      setIsScannerOpen(false);
+      closeScanner();
       setScannerMode("camera");
-      autoScanStartedRef.current = false;
       clearNewInvoice();
       setIsCreateDialogOpen(false);
-      restoreInteractionAfterClose();
     } catch (e: any) {
       toast({
         title: "Failed",
@@ -2354,15 +2371,9 @@ export default function Sales() {
       />
       <Dialog
         open={isScannerOpen}
-        onOpenChange={setIsScannerOpen}
-        modal={false}
+        onOpenChange={(open) => (open ? setIsScannerOpen(true) : closeScanner())}
       >
-        <DialogContent
-          hideOverlay
-          className="z-[60] w-[calc(100vw-2rem)] max-w-md"
-          onPointerDownOutside={(event) => event.preventDefault()}
-          onInteractOutside={(event) => event.preventDefault()}
-        >
+        <DialogContent className="z-[60] w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {scannerMode === "camera" ? (
@@ -2410,7 +2421,7 @@ export default function Sales() {
                         });
                         if (added) {
                           setManualProductSearch("");
-                          setIsScannerOpen(false);
+                          closeScanner();
                         }
                       }}
                     >
@@ -2430,10 +2441,7 @@ export default function Sales() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => {
-                  setScannerMode("camera");
-                  setScannerStatus("starting");
-                }}
+                onClick={startCameraScanner}
               >
                 <Camera className="mr-2 h-4 w-4" />
                 {t("sales.back_to_camera")}
@@ -2476,10 +2484,7 @@ export default function Sales() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setScannerMode("manual");
-                    setManualProductSearch("");
-                  }}
+                  onClick={openManualSearch}
                 >
                   {t("sales.search_manually")}
                 </Button>
@@ -2500,10 +2505,7 @@ export default function Sales() {
                 <Button
                   type="button"
                   className="flex-1"
-                  onClick={() => {
-                    setScannerStatus("starting");
-                    setScannerAttempt((attempt) => attempt + 1);
-                  }}
+                  onClick={startCameraScanner}
                 >
                   {t("sales.try_again")}
                 </Button>
@@ -2511,17 +2513,14 @@ export default function Sales() {
                   type="button"
                   variant="outline"
                   className="flex-1"
-                  onClick={() => {
-                    setScannerMode("manual");
-                    setManualProductSearch("");
-                  }}
+                  onClick={openManualSearch}
                 >
                   {t("sales.search_manually")}
                 </Button>
               </div>
             </div>
           )}
-          <Button type="button" variant="outline" onClick={() => setIsScannerOpen(false)}>
+          <Button type="button" variant="outline" onClick={closeScanner}>
             Done scanning
           </Button>
         </DialogContent>
@@ -2577,14 +2576,17 @@ export default function Sales() {
                   {t("sales.new_invoice")}
                 </Button>
               </DrawerTrigger>
-              <DrawerContent className="max-h-[90vh]">
+              <DrawerContent className="h-[90dvh] max-h-[90dvh] overflow-hidden">
                 <DrawerHeader>
                   <DrawerTitle>{t("sales.create_new_invoice")}</DrawerTitle>
                   <DrawerDescription>
                     {t("sales.generate_invoice")}
                   </DrawerDescription>
                 </DrawerHeader>
-                <div className="px-4 pb-4 overflow-y-auto flex flex-col gap-6">
+                <div
+                  className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-6"
+                  data-vaul-no-drag
+                >
                   <Button
                     type="button"
                     variant="outline"
@@ -2788,13 +2790,7 @@ export default function Sales() {
                               variant="outline"
                               size="sm"
                               className="h-8 shrink-0"
-                              onClick={() => {
-                                setScannerMode("camera");
-                                setManualProductSearch("");
-                                setScannerStatus("starting");
-                                setScannerAttempt((attempt) => attempt + 1);
-                                setIsScannerOpen(true);
-                              }}
+                              onClick={startCameraScanner}
                             >
                               <Camera className="mr-1.5 h-4 w-4" />
                               Scan barcode
@@ -3125,7 +3121,7 @@ export default function Sales() {
                     />
                   </div>
                 </div>
-                <DrawerFooter className="border-t bg-background/95 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
+                <DrawerFooter className="shrink-0 border-t bg-background/95 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
                   <Button
                     className="w-full"
                     onClick={createInvoice}
@@ -3372,13 +3368,7 @@ export default function Sales() {
                               variant="outline"
                               size="sm"
                               className="h-8 shrink-0"
-                              onClick={() => {
-                                setScannerMode("camera");
-                                setManualProductSearch("");
-                                setScannerStatus("starting");
-                                setScannerAttempt((attempt) => attempt + 1);
-                                setIsScannerOpen(true);
-                              }}
+                              onClick={startCameraScanner}
                             >
                               <Camera className="mr-1.5 h-4 w-4" />
                               Scan barcode

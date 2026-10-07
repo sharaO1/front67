@@ -103,6 +103,10 @@
     "settings": "Танзимот",
     "filials": "Филиалҳо"
   },
+  "ai_chat": {
+    "welcome": "Салом! Хуш омадед ба ёвари анбор ва тиҷорати худ. Имрӯз чӣ гуна метавонам ба шумо кӯмак кунам?",
+    "connection_failure": "Пайвастшавӣ ба шабака имконнопазир аст. Лутфан пайвасти интернетро санҷед."
+  },
   "notifications": {
     "open": "Кушодани огоҳиномаҳо",
     "title": "Огоҳиномаҳо",
@@ -114,6 +118,7 @@
     "out_of_stock": "Дар анбор нест",
     "low_stock": "Моли анбор кам аст",
     "stock_level": "Боқӣ монд: {{count}} · ҳадди ақал: {{minimum}}",
+    "branch_stock_level": "Боқӣ монд: {{count}} · ҳадди ақал: {{minimum}}",
     "new": "Нав",
     "view_inventory": "Кушодани анбор",
     "unknown_product": "Моли номаълум"
@@ -194,6 +199,9 @@
     "books": "Китобҳо",
     "add_new_product": "Маҳсулоти нав илова кардан",
     "enter_product_details": "Тафсилоти маҳсулоти навро ворид кунед.",
+    "basic_information": "Маълумоти маҳсулот",
+    "inventory_and_pricing": "Захира ва нархгузорӣ",
+    "supplier_and_location": "Таъминкунанда ва ҷойгиршавӣ",
     "enter_product_name": "Номи маҳсулотро ворид кунед",
     "select_category": "Категорияро интихоб кунед",
     "enter_brand_name": "Номи брендро ворид кунед",
@@ -351,6 +359,8 @@
     "all_time_revenue": "Даромади ҳама вақт",
     "add_new_client": "Муштарии нав илова кардан",
     "create_client_profile": "Профили нави муштарӣ бо маълумоти тамос ва тиҷоратӣ эҷод кунед.",
+    "contact_information": "Маълумоти тамос",
+    "account_details": "Маълумоти ҳисоб",
     "company_name": "Номи пурра / Номи ширкат",
     "enter_client_name": "Номи муштариро ворид кунед",
     "client_email": "client@email.com",
