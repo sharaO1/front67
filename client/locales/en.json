@@ -103,6 +103,10 @@
     "settings": "Settings",
     "filials": "Filials"
   },
+  "ai_chat": {
+    "welcome": "Hello! Welcome to your warehouse and business assistant. How can I help you today?",
+    "connection_failure": "Failed to connect to the network. Please check your internet connection."
+  },
   "notifications": {
     "open": "Open notifications",
     "title": "Notifications",
