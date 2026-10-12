@@ -4727,7 +4727,7 @@ export default function Warehouse() {
                                     : ""
                                 }
                               >
-                                {t(`warehouse.${stockStatus.replace("-", "_")}`)}
+                                {t(`warehouse.${stockStatus.replace(/-/g, "_")}`)}
                               </Badge>
                             )}
                             <div
