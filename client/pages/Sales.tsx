@@ -304,10 +304,11 @@ export default function Sales() {
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [hasReadCode, setHasReadCode] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
+  const cameraBarcodeHandlerRef = useRef<(code: string) => void>(() => {});
+  const closeCameraRef = useRef<() => void>(() => {});
   const cameraRequestRef = useRef(0);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -322,13 +323,12 @@ export default function Sales() {
     scannerControlsRef.current = null;
     cameraStream?.getTracks().forEach((track) => track.stop());
     setCameraStream(null);
-    setHasReadCode(false);
     setIsCameraOpen(false);
   };
+  closeCameraRef.current = closeCamera;
 
   const openCamera = async () => {
     const requestId = ++cameraRequestRef.current;
-    setHasReadCode(false);
     setIsCameraOpen(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -368,8 +368,9 @@ export default function Sales() {
         return reader
           .decodeFromVideoElement(video, (result, _error, controls) => {
             if (!active || !result) return;
-            setHasReadCode(true);
             controls.stop();
+            cameraBarcodeHandlerRef.current(result.getText());
+            closeCameraRef.current();
           })
           .then((controls) => {
             scannerControlsRef.current = controls;
@@ -516,6 +517,7 @@ export default function Sales() {
     },
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
+  cameraBarcodeHandlerRef.current = (code) => handleBarcodeScanned(code);
 
   // Reset form state when the invoice drawer closes.
   useEffect(() => {
@@ -2368,13 +2370,6 @@ export default function Sales() {
                       muted
                       className="h-full w-full object-cover"
                     />
-                    {hasReadCode && (
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                        <span className="rounded-lg bg-black/70 px-6 py-3 text-3xl font-bold tracking-widest text-white">
-                          DONE
-                        </span>
-                      </div>
-                    )}
                     <Button
                       type="button"
                       variant="secondary"
