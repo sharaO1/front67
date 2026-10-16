@@ -594,7 +594,7 @@
     "camera_insecure": "Camera scanning requires HTTPS",
     "camera_error": "The camera could not be started",
     "open_camera": "Open camera",
-    "scan_quantity": "Quantity per scan",
+    "quantity_to_add": "Quantity to Add",
     "period": "Period",
     "invalid_date_range": "Invalid date range"
   },

@@ -579,7 +579,7 @@
     "camera_insecure": "Сканкунии камера HTTPS талаб мекунад",
     "camera_error": "Камера оғоз карда нашуд",
     "open_camera": "Камераро кушодан",
-    "scan_quantity": "Миқдор барои як скан",
+    "quantity_to_add": "Миқдор барои илова кардан",
     "period": "Давра",
     "invalid_date_range": "Диапазони сана нодуруст аст",
     "toast": {

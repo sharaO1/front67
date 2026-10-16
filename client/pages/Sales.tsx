@@ -305,14 +305,16 @@ export default function Sales() {
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraQuantity, setCameraQuantity] = useState("1");
+  const [pendingCameraProduct, setPendingCameraProduct] = useState<Product | null>(null);
   const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const cameraQuantityInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
-  const cameraBarcodeHandlerRef = useRef<(code: string) => boolean>(() => false);
+  const cameraBarcodeHandlerRef = useRef<(code: string) => Product | undefined>(() => undefined);
+  const pendingCameraProductRef = useRef<Product | null>(null);
   const lastCameraCodeRef = useRef("");
-  const cameraCodeResetTimeoutRef = useRef<number | null>(null);
+  const cameraMissedFramesRef = useRef(0);
   const cameraFeedbackTimeoutRef = useRef<number | null>(null);
   const cameraRequestRef = useRef(0);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
@@ -329,24 +331,21 @@ export default function Sales() {
     cameraStream?.getTracks().forEach((track) => track.stop());
     setCameraStream(null);
     setIsCameraOpen(false);
+    pendingCameraProductRef.current = null;
+    setPendingCameraProduct(null);
     setCameraMatchFeedback(false);
     if (cameraFeedbackTimeoutRef.current !== null) {
       window.clearTimeout(cameraFeedbackTimeoutRef.current);
       cameraFeedbackTimeoutRef.current = null;
-    }
-    if (cameraCodeResetTimeoutRef.current !== null) {
-      window.clearTimeout(cameraCodeResetTimeoutRef.current);
-      cameraCodeResetTimeoutRef.current = null;
     }
   };
 
   const openCamera = async () => {
     const requestId = ++cameraRequestRef.current;
     lastCameraCodeRef.current = "";
-    if (cameraCodeResetTimeoutRef.current !== null) {
-      window.clearTimeout(cameraCodeResetTimeoutRef.current);
-      cameraCodeResetTimeoutRef.current = null;
-    }
+    cameraMissedFramesRef.current = 0;
+    pendingCameraProductRef.current = null;
+    setPendingCameraProduct(null);
     setCameraMatchFeedback(false);
     setIsCameraOpen(true);
     try {
@@ -386,36 +385,27 @@ export default function Sales() {
         const reader = new BrowserMultiFormatReader();
         return reader
           .decodeFromVideoElement(video, (result) => {
-            if (
-              !active ||
-              !result ||
-              document.activeElement === cameraQuantityInputRef.current
-            ) {
-              return;
-            }
-            const code = result.getText().trim();
-            if (code === lastCameraCodeRef.current) {
-              if (cameraCodeResetTimeoutRef.current !== null) {
-                window.clearTimeout(cameraCodeResetTimeoutRef.current);
-              }
-              cameraCodeResetTimeoutRef.current = window.setTimeout(() => {
+            if (!active || pendingCameraProductRef.current) return;
+            if (!result) {
+              cameraMissedFramesRef.current += 1;
+              if (cameraMissedFramesRef.current >= 3) {
                 lastCameraCodeRef.current = "";
-              }, 1200);
+              }
               return;
             }
+            cameraMissedFramesRef.current = 0;
+            const code = result.getText().trim();
+            if (code === lastCameraCodeRef.current) return;
             lastCameraCodeRef.current = code;
-            cameraCodeResetTimeoutRef.current = window.setTimeout(() => {
-              lastCameraCodeRef.current = "";
-            }, 1200);
-            if (cameraBarcodeHandlerRef.current(code)) {
-              setCameraMatchFeedback(true);
-              if (cameraFeedbackTimeoutRef.current !== null) {
-                window.clearTimeout(cameraFeedbackTimeoutRef.current);
-              }
-              cameraFeedbackTimeoutRef.current = window.setTimeout(
-                () => setCameraMatchFeedback(false),
-                800,
-              );
+            const product = cameraBarcodeHandlerRef.current(code);
+            if (!product) return;
+            pendingCameraProductRef.current = product;
+            setPendingCameraProduct(product);
+            setCameraQuantity("1");
+            setCameraMatchFeedback(true);
+            if (cameraFeedbackTimeoutRef.current !== null) {
+              window.clearTimeout(cameraFeedbackTimeoutRef.current);
+              cameraFeedbackTimeoutRef.current = null;
             }
           })
           .then((controls) => {
@@ -573,7 +563,11 @@ export default function Sales() {
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
   cameraBarcodeHandlerRef.current = (code) =>
-    handleBarcodeScanned(code, true, Number(cameraQuantity), false, false);
+    products.find(
+      (product) =>
+        product.sku?.trim().toLowerCase() === code.toLowerCase() ||
+        product.barcode?.trim().toLowerCase() === code.toLowerCase(),
+    );
 
   // Reset form state when the invoice drawer closes.
   useEffect(() => {
@@ -1758,6 +1752,42 @@ export default function Sales() {
     return true;
   };
 
+  const addCameraProductToInvoice = () => {
+    const product = pendingCameraProductRef.current;
+    if (!product) return;
+
+    const quantity = Number(cameraQuantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      toast({
+        title: t("common.invalid_quantity"),
+        description: t("common.quantity_greater_than_zero"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const added = addItemToInvoice({
+      productId: product.id,
+      productName: product.name,
+      quantity,
+      unitPrice: product.unitPrice,
+      discount: 0,
+    });
+    if (!added) return;
+
+    pendingCameraProductRef.current = null;
+    setPendingCameraProduct(null);
+    setCameraQuantity("1");
+    setCameraMatchFeedback(true);
+    if (cameraFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(cameraFeedbackTimeoutRef.current);
+    }
+    cameraFeedbackTimeoutRef.current = window.setTimeout(
+      () => setCameraMatchFeedback(false),
+      800,
+    );
+  };
+
   const removeItemFromInvoice = (itemId: string) => {
     const item = newInvoice.items?.find((i) => i.id === itemId);
     const updatedItems = (newInvoice.items || []).filter(
@@ -2441,25 +2471,37 @@ export default function Sales() {
                         />
                       </div>
                     </div>
-                    <div
-                      data-vaul-no-drag
-                      className="absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-48 -translate-x-1/2 rounded-xl bg-black/70 p-3"
-                    >
-                      <Label htmlFor="camera-quantity" className="mb-2 block text-sm text-white">
-                        {t("sales.scan_quantity")}
-                      </Label>
-                      <Input
-                        ref={cameraQuantityInputRef}
-                        id="camera-quantity"
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        step="1"
-                        value={cameraQuantity}
-                        onChange={(event) => setCameraQuantity(event.target.value)}
-                        className="h-11 bg-background text-center text-lg font-semibold text-foreground"
-                      />
-                    </div>
+                    {pendingCameraProduct && (
+                      <div
+                        data-vaul-no-drag
+                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
+                      >
+                        <div className="truncate text-center text-base font-semibold text-foreground">
+                          {pendingCameraProduct.name}
+                        </div>
+                        <Label htmlFor="camera-quantity">
+                          {t("sales.quantity_to_add")}
+                        </Label>
+                        <Input
+                          ref={cameraQuantityInputRef}
+                          id="camera-quantity"
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          step="1"
+                          value={cameraQuantity}
+                          onChange={(event) => setCameraQuantity(event.target.value)}
+                          className="h-11 text-center text-lg font-semibold"
+                        />
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={addCameraProductToInvoice}
+                        >
+                          {t("sales.add_item")}
+                        </Button>
+                      </div>
+                    )}
                     <Button
                       type="button"
                       variant="secondary"
