@@ -52,7 +52,6 @@ import {
   X,
   AlertTriangle,
   Calendar,
-  Camera,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import {
@@ -77,7 +76,6 @@ import {
 } from "@/components/ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PaginationControls } from "@/components/ui/pagination";
-import { BrowserMultiFormatReader } from "@zxing/browser";
 
 interface InvoiceItem {
   id: string;
@@ -304,93 +302,15 @@ export default function Sales() {
   >("today");
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scannerStatus, setScannerStatus] = useState<
-    "starting" | "scanning" | "unsupported" | "denied" | "insecure" | "error"
-  >("starting");
-  const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
-  const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
-  const scannerRequestRef = useRef(0);
-  const scannerStreamRef = useRef<MediaStream | null>(null);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const barcodeScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const justScannedRef = useRef(false);
   const quantityInputRef = useRef<HTMLInputElement | null>(null);
   const productSelectTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const scanQuantityRef = useRef(1);
-  const lastCameraScanRef = useRef<{ code: string; at: number } | null>(null);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [scanQuantity, setScanQuantity] = useState(1);
-  const [scannerMode, setScannerMode] = useState<"camera" | "manual">("camera");
-  const [manualProductSearch, setManualProductSearch] = useState("");
-
-  const stopCameraScanner = () => {
-    scannerRequestRef.current += 1;
-    scannerControlsRef.current?.stop();
-    scannerControlsRef.current = null;
-    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
-    scannerStreamRef.current = null;
-    setCameraStream(null);
-    if (scannerVideoRef.current) {
-      scannerVideoRef.current.pause();
-      scannerVideoRef.current.srcObject = null;
-    }
-  };
-
-  const closeScanner = () => {
-    stopCameraScanner();
-    setIsScannerOpen(false);
-  };
-
-  const openManualSearch = () => {
-    stopCameraScanner();
-    setScannerMode("manual");
-    setManualProductSearch("");
-    setIsScannerOpen(true);
-  };
-
-  const startCameraScanner = async () => {
-    stopCameraScanner();
-    const requestId = scannerRequestRef.current;
-    setScannerMode("camera");
-    setScannerStatus("starting");
-    setIsScannerOpen(true);
-
-    if (!window.isSecureContext) {
-      setScannerStatus("insecure");
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerStatus("unsupported");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
-      if (requestId !== scannerRequestRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-      scannerStreamRef.current = stream;
-      setCameraStream(stream);
-    } catch (error) {
-      if (requestId === scannerRequestRef.current) {
-        setScannerStatus(
-          error instanceof DOMException && error.name === "NotAllowedError"
-            ? "denied"
-            : "error",
-        );
-      }
-    }
-  };
 
   const handleCreateDialogOpenChange = (open: boolean) => {
     setIsCreateDialogOpen(open);
-    if (!open) closeScanner();
   };
 
   const closeExportLayers = () => {
@@ -515,71 +435,10 @@ export default function Sales() {
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
 
-  const handleBarcodeScannedRef = useRef(handleBarcodeScanned);
-  handleBarcodeScannedRef.current = handleBarcodeScanned;
-
-  useEffect(() => {
-    const video = scannerVideoRef.current;
-    const stream = cameraStream;
-    if (!isScannerOpen || scannerMode !== "camera" || !stream || !video) {
-      return;
-    }
-
-    let cancelled = false;
-    const reader = new BrowserMultiFormatReader();
-    lastCameraScanRef.current = null;
-
-    reader
-      .decodeFromStream(stream, video, (result) => {
-        const value = result?.getText().trim();
-        if (cancelled || !value) return;
-
-        const now = Date.now();
-        const lastScan = lastCameraScanRef.current;
-        if (lastScan?.code === value && now - lastScan.at < 1200) return;
-
-        lastCameraScanRef.current = { code: value, at: now };
-        handleBarcodeScannedRef.current(value, true, scanQuantityRef.current);
-        scanQuantityRef.current = 1;
-        setScanQuantity(1);
-      })
-      .then((controls) => {
-        if (cancelled) {
-          controls.stop();
-          return;
-        }
-        scannerControlsRef.current = controls;
-        setScannerStatus("scanning");
-      })
-      .catch(() => {
-        if (!cancelled) setScannerStatus("error");
-      });
-
-    return () => {
-      cancelled = true;
-      scannerControlsRef.current?.stop();
-      scannerControlsRef.current = null;
-      stream.getTracks().forEach((track) => track.stop());
-      if (scannerStreamRef.current === stream) scannerStreamRef.current = null;
-      video.pause();
-      video.srcObject = null;
-    };
-  }, [cameraStream, isScannerOpen, scannerMode]);
-
-  useEffect(
-    () => () => {
-      scannerRequestRef.current += 1;
-      scannerControlsRef.current?.stop();
-      scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
-    },
-    [],
-  );
-
   // Reset form state when the invoice drawer closes.
   useEffect(() => {
     if (!isCreateDialogOpen) {
       clearNewInvoice();
-      closeScanner();
       return;
     }
 
@@ -1479,8 +1338,6 @@ export default function Sales() {
     setShowCustomerDetails(false);
     setShowPaymentDetails(false);
     setShowNotes(false);
-    scanQuantityRef.current = 1;
-    setScanQuantity(1);
     setBorrowReturnDate(defaultReturnDate);
   };
 
@@ -1926,8 +1783,6 @@ export default function Sales() {
       };
 
       setInvoices([invoice, ...invoices]);
-      closeScanner();
-      setScannerMode("camera");
       clearNewInvoice();
       setIsCreateDialogOpen(false);
     } catch (e: any) {
@@ -2369,162 +2224,6 @@ export default function Sales() {
         aria-label="Barcode scanner input"
         className="fixed left-[-9999px] top-0 h-px w-px opacity-0"
       />
-      <Dialog
-        open={isScannerOpen}
-        onOpenChange={(open) => (open ? setIsScannerOpen(true) : closeScanner())}
-      >
-        <DialogContent className="z-[60] w-[calc(100vw-2rem)] max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {scannerMode === "camera" ? (
-                <Camera className="h-5 w-5" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-              {scannerMode === "camera" ? "Scan barcode" : "Search product"}
-            </DialogTitle>
-            <DialogDescription>
-              {scannerMode === "camera"
-                ? "Point your phone camera at a product barcode."
-                : "Find a product by name, SKU, or barcode."}
-            </DialogDescription>
-          </DialogHeader>
-          {scannerMode === "manual" ? (
-            <div className="space-y-3">
-              <Input
-                autoFocus
-                placeholder={t("sales.search_products_scanner")}
-                value={manualProductSearch}
-                onChange={(event) => setManualProductSearch(event.target.value)}
-              />
-              <div className="max-h-64 space-y-2 overflow-y-auto">
-                {products
-                  .filter((product) => {
-                    const query = manualProductSearch.trim().toLowerCase();
-                    if (!query) return true;
-                    return [product.name, product.sku, product.barcode]
-                      .filter(Boolean)
-                      .some((value) => value!.toLowerCase().includes(query));
-                  })
-                  .map((product) => (
-                    <button
-                      key={product.id}
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-muted"
-                      onClick={() => {
-                        const added = addItemToInvoice({
-                          productId: product.id,
-                          productName: product.name,
-                          quantity: scanQuantity,
-                          unitPrice: product.unitPrice,
-                          discount: 0,
-                        });
-                        if (added) {
-                          setManualProductSearch("");
-                          closeScanner();
-                        }
-                      }}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">{product.name}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {product.sku || product.barcode || ""}
-                        </span>
-                      </span>
-                      <span className="ml-3 shrink-0 text-sm font-medium">
-                        {product.unitPrice.toLocaleString()} TJS
-                      </span>
-                    </button>
-                  ))}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={startCameraScanner}
-              >
-                <Camera className="mr-2 h-4 w-4" />
-                {t("sales.back_to_camera")}
-              </Button>
-            </div>
-          ) : scannerStatus === "starting" || scannerStatus === "scanning" ? (
-            <div className="space-y-4">
-              <div className="relative overflow-hidden rounded-lg bg-black aspect-video">
-                <video
-                  ref={scannerVideoRef}
-                  className="h-full w-full object-cover"
-                  playsInline
-                  autoPlay
-                  muted
-                />
-                <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 -translate-y-1/2 bg-primary shadow-[0_0_12px_hsl(var(--primary))]" />
-              </div>
-              <p className="text-center text-sm text-muted-foreground">
-                {scannerStatus === "starting" ? t("sales.starting_camera") : t("sales.scanning")}
-              </p>
-              <div className="flex items-end gap-2">
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor="scan-quantity" className="text-xs">
-                    Quantity for next scan
-                  </Label>
-                  <Input
-                    id="scan-quantity"
-                    type="number"
-                    min="1"
-                    inputMode="numeric"
-                    value={scanQuantity}
-                    onFocus={(event) => event.currentTarget.select()}
-                    onChange={(event) => {
-                      const next = event.target.value === "" ? 0 : parseInt(event.target.value, 10);
-                      scanQuantityRef.current = Number.isFinite(next) ? next : 0;
-                      setScanQuantity(Number.isFinite(next) ? next : 0);
-                    }}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={openManualSearch}
-                >
-                  {t("sales.search_manually")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 rounded-lg border p-4 text-sm">
-              <p className="text-muted-foreground">
-                {scannerStatus === "unsupported"
-                  ? t("sales.camera_unsupported")
-                  : scannerStatus === "denied"
-                    ? t("sales.camera_denied")
-                    : scannerStatus === "insecure"
-                      ? t("sales.camera_insecure")
-                      : t("sales.camera_error")}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  className="flex-1"
-                  onClick={startCameraScanner}
-                >
-                  {t("sales.try_again")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={openManualSearch}
-                >
-                  {t("sales.search_manually")}
-                </Button>
-              </div>
-            </div>
-          )}
-          <Button type="button" variant="outline" onClick={closeScanner}>
-            Done scanning
-          </Button>
-        </DialogContent>
-      </Dialog>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -2784,18 +2483,7 @@ export default function Sales() {
                           <Label htmlFor="product">
                             {t("sales.select_product")} *
                           </Label>
-                          {isMobile && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 shrink-0"
-                              onClick={startCameraScanner}
-                            >
-                              <Camera className="mr-1.5 h-4 w-4" />
-                              Scan barcode
-                            </Button>
-                          )}
+
                         </div>
                         <Select
                           value={currentItem.productId || ""}
@@ -3362,18 +3050,7 @@ export default function Sales() {
                           <Label htmlFor="product">
                             {t("sales.select_product")} *
                           </Label>
-                          {isMobile && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 shrink-0"
-                              onClick={startCameraScanner}
-                            >
-                              <Camera className="mr-1.5 h-4 w-4" />
-                              Scan barcode
-                            </Button>
-                          )}
+
                         </div>
                         <Select
                           value={currentItem.productId || ""}
