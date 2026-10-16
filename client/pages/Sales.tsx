@@ -39,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Plus,
   Search,
+  Camera,
   ShoppingCart,
   Edit,
   Trash2,
@@ -302,6 +303,10 @@ export default function Sales() {
   >("today");
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraRequestRef = useRef(0);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const barcodeScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -309,7 +314,49 @@ export default function Sales() {
   const quantityInputRef = useRef<HTMLInputElement | null>(null);
   const productSelectTriggerRef = useRef<HTMLButtonElement | null>(null);
 
+  const closeCamera = () => {
+    cameraRequestRef.current += 1;
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+    setIsCameraOpen(false);
+  };
+
+  const openCamera = async () => {
+    const requestId = ++cameraRequestRef.current;
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      if (requestId !== cameraRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      setCameraStream(stream);
+    } catch {
+      if (requestId === cameraRequestRef.current) {
+        setIsCameraOpen(false);
+        toast({ title: t("sales.camera_error"), variant: "destructive" });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!isCameraOpen || !cameraStream || !cameraVideoRef.current) return;
+    cameraVideoRef.current.srcObject = cameraStream;
+    return () => {
+      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+    };
+  }, [isCameraOpen, cameraStream]);
+
+  useEffect(
+    () => () => cameraStream?.getTracks().forEach((track) => track.stop()),
+    [cameraStream],
+  );
+
   const handleCreateDialogOpenChange = (open: boolean) => {
+    if (!open) closeCamera();
     setIsCreateDialogOpen(open);
   };
 
@@ -1783,6 +1830,7 @@ export default function Sales() {
       };
 
       setInvoices([invoice, ...invoices]);
+      closeCamera();
       clearNewInvoice();
       setIsCreateDialogOpen(false);
     } catch (e: any) {
@@ -2275,7 +2323,28 @@ export default function Sales() {
                   {t("sales.new_invoice")}
                 </Button>
               </DrawerTrigger>
-              <DrawerContent className="h-[90dvh] max-h-[90dvh] overflow-hidden">
+              <DrawerContent className="relative h-[90dvh] max-h-[90dvh] overflow-hidden">
+                {isCameraOpen && (
+                  <div className="absolute inset-0 z-50 bg-black" data-vaul-no-drag>
+                    <video
+                      ref={cameraVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="h-full w-full object-cover"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      aria-label={t("common.close")}
+                      onClick={closeCamera}
+                      className="absolute right-4 top-4 z-10 rounded-full"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                )}
                 <DrawerHeader>
                   <DrawerTitle>{t("sales.create_new_invoice")}</DrawerTitle>
                   <DrawerDescription>
@@ -2286,6 +2355,15 @@ export default function Sales() {
                   className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-6"
                   data-vaul-no-drag
                 >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={openCamera}
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    {t("sales.open_camera")}
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -2823,6 +2901,7 @@ export default function Sales() {
                   <Button
                     variant="outline"
                     onClick={() => {
+                      closeCamera();
                       clearNewInvoice();
                       setIsCreateDialogOpen(false);
                     }}

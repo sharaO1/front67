@@ -578,6 +578,7 @@
     "camera_denied": "Дастрасӣ ба камера рад карда шуд",
     "camera_insecure": "Сканкунии камера HTTPS талаб мекунад",
     "camera_error": "Камера оғоз карда нашуд",
+    "open_camera": "Камераро кушодан",
     "period": "Давра",
     "invalid_date_range": "Диапазони сана нодуруст аст",
     "toast": {

@@ -578,6 +578,7 @@
     "camera_denied": "Доступ к камере запрещен",
     "camera_insecure": "Для сканирования камерой требуется HTTPS",
     "camera_error": "Не удалось запустить камеру",
+    "open_camera": "Открыть камеру",
     "period": "Период",
     "invalid_date_range": "Неверный диапазон дат",
     "toast": {

@@ -593,6 +593,7 @@
     "camera_denied": "Camera access was denied",
     "camera_insecure": "Camera scanning requires HTTPS",
     "camera_error": "The camera could not be started",
+    "open_camera": "Open camera",
     "period": "Period",
     "invalid_date_range": "Invalid date range"
   },
