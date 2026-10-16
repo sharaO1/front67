@@ -304,11 +304,14 @@ export default function Sales() {
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
-  const cameraBarcodeHandlerRef = useRef<(code: string) => void>(() => {});
-  const closeCameraRef = useRef<() => void>(() => {});
+  const cameraBarcodeHandlerRef = useRef<(code: string) => boolean>(() => false);
+  const lastCameraCodeRef = useRef("");
+  const cameraCodeResetTimeoutRef = useRef<number | null>(null);
+  const cameraFeedbackTimeoutRef = useRef<number | null>(null);
   const cameraRequestRef = useRef(0);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -324,11 +327,25 @@ export default function Sales() {
     cameraStream?.getTracks().forEach((track) => track.stop());
     setCameraStream(null);
     setIsCameraOpen(false);
+    setCameraMatchFeedback(false);
+    if (cameraFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(cameraFeedbackTimeoutRef.current);
+      cameraFeedbackTimeoutRef.current = null;
+    }
+    if (cameraCodeResetTimeoutRef.current !== null) {
+      window.clearTimeout(cameraCodeResetTimeoutRef.current);
+      cameraCodeResetTimeoutRef.current = null;
+    }
   };
-  closeCameraRef.current = closeCamera;
 
   const openCamera = async () => {
     const requestId = ++cameraRequestRef.current;
+    lastCameraCodeRef.current = "";
+    if (cameraCodeResetTimeoutRef.current !== null) {
+      window.clearTimeout(cameraCodeResetTimeoutRef.current);
+      cameraCodeResetTimeoutRef.current = null;
+    }
+    setCameraMatchFeedback(false);
     setIsCameraOpen(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -366,11 +383,32 @@ export default function Sales() {
         if (!active) return;
         const reader = new BrowserMultiFormatReader();
         return reader
-          .decodeFromVideoElement(video, (result, _error, controls) => {
+          .decodeFromVideoElement(video, (result) => {
             if (!active || !result) return;
-            controls.stop();
-            cameraBarcodeHandlerRef.current(result.getText());
-            closeCameraRef.current();
+            const code = result.getText().trim();
+            if (code === lastCameraCodeRef.current) {
+              if (cameraCodeResetTimeoutRef.current !== null) {
+                window.clearTimeout(cameraCodeResetTimeoutRef.current);
+              }
+              cameraCodeResetTimeoutRef.current = window.setTimeout(() => {
+                lastCameraCodeRef.current = "";
+              }, 1200);
+              return;
+            }
+            lastCameraCodeRef.current = code;
+            cameraCodeResetTimeoutRef.current = window.setTimeout(() => {
+              lastCameraCodeRef.current = "";
+            }, 1200);
+            if (cameraBarcodeHandlerRef.current(code)) {
+              setCameraMatchFeedback(true);
+              if (cameraFeedbackTimeoutRef.current !== null) {
+                window.clearTimeout(cameraFeedbackTimeoutRef.current);
+              }
+              cameraFeedbackTimeoutRef.current = window.setTimeout(
+                () => setCameraMatchFeedback(false),
+                800,
+              );
+            }
           })
           .then((controls) => {
             scannerControlsRef.current = controls;
@@ -439,7 +477,13 @@ export default function Sales() {
   const { t, i18n } = useTranslation();
 
   const handleBarcodeScanned = useCallback(
-    (sku: string, addImmediately = false, quantity = 1) => {
+    (
+      sku: string,
+      addImmediately = false,
+      quantity = 1,
+      showNotFoundToast = true,
+      focusAfterScan = true,
+    ) => {
       const normalizedCode = sku.trim().toLowerCase();
       const product = products.find(
         (p) =>
@@ -447,12 +491,14 @@ export default function Sales() {
           p.barcode?.trim().toLowerCase() === normalizedCode,
       );
       if (!product) {
-        toast({
-          title: t("common.product_not_found"),
-          description: t("common.product_not_found_with_code", { code: sku }),
-          variant: "destructive",
-        });
-        return;
+        if (showNotFoundToast) {
+          toast({
+            title: t("common.product_not_found"),
+            description: t("common.product_not_found_with_code", { code: sku }),
+            variant: "destructive",
+          });
+        }
+        return false;
       }
 
       if (addImmediately && (!Number.isInteger(quantity) || quantity <= 0)) {
@@ -461,7 +507,7 @@ export default function Sales() {
           description: t("common.quantity_greater_than_zero"),
           variant: "destructive",
         });
-        return;
+        return false;
       }
 
       if (addImmediately && product.stock != null && quantity > product.stock) {
@@ -470,14 +516,14 @@ export default function Sales() {
           description: t("common.units_available", { count: product.stock }),
           variant: "destructive",
         });
-        return;
+        return true;
       }
 
       const wasDialogClosed = !isCreateDialogOpen;
 
       if (!addImmediately && isCreateDialogOpen && currentItemRef.current.productId) {
         const previousItemAdded = addItemToInvoice(currentItemRef.current);
-        if (!previousItemAdded) return;
+        if (!previousItemAdded) return false;
       }
 
       // Mark that a barcode was just scanned to prevent accidental invoice creation
@@ -498,26 +544,28 @@ export default function Sales() {
       };
 
       setCurrentItem(scannedItem);
-      if (addImmediately) {
-        addItemToInvoice(scannedItem);
-      }
+      if (addImmediately) addItemToInvoice(scannedItem);
 
       if (wasDialogClosed) {
         setIsCreateDialogOpen(true);
       }
 
-      window.setTimeout(() => {
-        if (!isMobile) {
-          desktopScannerInputRef.current?.focus();
-          return;
-        }
-        quantityInputRef.current?.focus();
-        quantityInputRef.current?.select();
-      }, wasDialogClosed ? 100 : 0);
+      if (focusAfterScan) {
+        window.setTimeout(() => {
+          if (!isMobile) {
+            desktopScannerInputRef.current?.focus();
+            return;
+          }
+          quantityInputRef.current?.focus();
+          quantityInputRef.current?.select();
+        }, wasDialogClosed ? 100 : 0);
+      }
+      return true;
     },
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
-  cameraBarcodeHandlerRef.current = (code) => handleBarcodeScanned(code);
+  cameraBarcodeHandlerRef.current = (code) =>
+    handleBarcodeScanned(code, true, 1, false, false);
 
   // Reset form state when the invoice drawer closes.
   useEffect(() => {
@@ -2370,6 +2418,21 @@ export default function Sales() {
                       muted
                       className="h-full w-full object-cover"
                     />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div
+                        className={`relative h-44 w-[78%] max-w-sm rounded-2xl border-2 transition-colors duration-200 ${
+                          cameraMatchFeedback
+                            ? "border-emerald-400 bg-emerald-400/10 shadow-[0_0_24px_rgba(52,211,153,0.35)]"
+                            : "border-white/80"
+                        }`}
+                      >
+                        <div
+                          className={`absolute inset-x-3 top-1/2 h-0.5 -translate-y-1/2 ${
+                            cameraMatchFeedback ? "bg-emerald-300" : "bg-white/90"
+                          }`}
+                        />
+                      </div>
+                    </div>
                     <Button
                       type="button"
                       variant="secondary"
