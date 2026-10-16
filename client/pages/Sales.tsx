@@ -304,9 +304,11 @@ export default function Sales() {
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraQuantity, setCameraQuantity] = useState("1");
   const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraQuantityInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
   const cameraBarcodeHandlerRef = useRef<(code: string) => boolean>(() => false);
   const lastCameraCodeRef = useRef("");
@@ -384,7 +386,13 @@ export default function Sales() {
         const reader = new BrowserMultiFormatReader();
         return reader
           .decodeFromVideoElement(video, (result) => {
-            if (!active || !result) return;
+            if (
+              !active ||
+              !result ||
+              document.activeElement === cameraQuantityInputRef.current
+            ) {
+              return;
+            }
             const code = result.getText().trim();
             if (code === lastCameraCodeRef.current) {
               if (cameraCodeResetTimeoutRef.current !== null) {
@@ -565,7 +573,7 @@ export default function Sales() {
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
   cameraBarcodeHandlerRef.current = (code) =>
-    handleBarcodeScanned(code, true, 1, false, false);
+    handleBarcodeScanned(code, true, Number(cameraQuantity), false, false);
 
   // Reset form state when the invoice drawer closes.
   useEffect(() => {
@@ -2432,6 +2440,25 @@ export default function Sales() {
                           }`}
                         />
                       </div>
+                    </div>
+                    <div
+                      data-vaul-no-drag
+                      className="absolute bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-48 -translate-x-1/2 rounded-xl bg-black/70 p-3"
+                    >
+                      <Label htmlFor="camera-quantity" className="mb-2 block text-sm text-white">
+                        {t("sales.scan_quantity")}
+                      </Label>
+                      <Input
+                        ref={cameraQuantityInputRef}
+                        id="camera-quantity"
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        step="1"
+                        value={cameraQuantity}
+                        onChange={(event) => setCameraQuantity(event.target.value)}
+                        className="h-11 bg-background text-center text-lg font-semibold text-foreground"
+                      />
                     </div>
                     <Button
                       type="button"
