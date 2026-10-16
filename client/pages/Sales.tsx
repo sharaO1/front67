@@ -340,10 +340,18 @@ export default function Sales() {
         return;
       }
       setCameraStream(stream);
-    } catch {
+    } catch (error) {
       if (requestId === cameraRequestRef.current) {
         setIsCameraOpen(false);
-        toast({ title: t("sales.camera_error"), variant: "destructive" });
+        const details =
+          error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : String(error);
+        toast({
+          title: t("sales.camera_error"),
+          description: details,
+          variant: "destructive",
+        });
       }
     }
   };
