@@ -1,30 +1,13 @@
 const API_BASE_STORAGE_KEY = "stockmind.api-base";
-const DEFAULT_API_BASE = "http://192.168.100.58:5002/api";
+const DEFAULT_API_BASE = "http://192.168.43.185:5002/api";
 
-function normalizeApiBase(value: string) {
-  const base = value.trim().replace(/\/+$/, "");
-  const url = new URL(base);
-  if (!/^https?:$/.test(url.protocol)) {
-    throw new Error("The server address must start with http:// or https://");
-  }
-  return base;
-}
-
-function getStoredApiBase() {
+if (typeof window !== "undefined") {
   try {
-    const stored = window.localStorage.getItem(API_BASE_STORAGE_KEY);
-    return stored ? normalizeApiBase(stored) : DEFAULT_API_BASE;
-  } catch {
-    return DEFAULT_API_BASE;
-  }
+    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+  } catch {}
 }
 
-export let API_BASE = getStoredApiBase();
-
-export function setApiBase(value: string) {
-  API_BASE = normalizeApiBase(value);
-  window.localStorage.setItem(API_BASE_STORAGE_KEY, API_BASE);
-}
+export const API_BASE = DEFAULT_API_BASE;
 
 export function joinApi(path: string) {
   if (!path) return API_BASE;
