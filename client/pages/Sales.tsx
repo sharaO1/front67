@@ -39,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Plus,
   Search,
+  Camera,
   ShoppingCart,
   Edit,
   Trash2,
@@ -52,7 +53,6 @@ import {
   X,
   AlertTriangle,
   Calendar,
-  Camera,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import {
@@ -77,7 +77,6 @@ import {
 } from "@/components/ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PaginationControls } from "@/components/ui/pagination";
-import { BrowserMultiFormatReader } from "@zxing/browser";
 
 interface InvoiceItem {
   id: string;
@@ -304,51 +303,138 @@ export default function Sales() {
   >("today");
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scannerStatus, setScannerStatus] = useState<
-    "starting" | "scanning" | "unsupported" | "denied" | "insecure" | "error"
-  >("starting");
-  const [scannerAttempt, setScannerAttempt] = useState(0);
-  const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraQuantity, setCameraQuantity] = useState("1");
+  const [pendingCameraProduct, setPendingCameraProduct] = useState<Product | null>(null);
+  const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraQuantityInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
+  const cameraBarcodeHandlerRef = useRef<(code: string) => Product | undefined>(() => undefined);
+  const pendingCameraProductRef = useRef<Product | null>(null);
+  const lastCameraCodeRef = useRef("");
+  const cameraMissedFramesRef = useRef(0);
+  const cameraFeedbackTimeoutRef = useRef<number | null>(null);
+  const cameraRequestRef = useRef(0);
   const desktopScannerInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const barcodeScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const justScannedRef = useRef(false);
   const quantityInputRef = useRef<HTMLInputElement | null>(null);
   const productSelectTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const scanQuantityRef = useRef(1);
-  const lastCameraScanRef = useRef<{ code: string; at: number } | null>(null);
-  const autoScanStartedRef = useRef(false);
-  const [scanQuantity, setScanQuantity] = useState(1);
-  const [scannerMode, setScannerMode] = useState<"camera" | "manual">("camera");
-  const [manualProductSearch, setManualProductSearch] = useState("");
 
-  const restoreInteractionState = () => {
-    document.body.style.pointerEvents = "";
-    document.body.style.overflow = "";
-    document.documentElement.style.overflow = "";
-    (document.activeElement as HTMLElement | null)?.blur?.();
+  const closeCamera = () => {
+    cameraRequestRef.current += 1;
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+    setIsCameraOpen(false);
+    pendingCameraProductRef.current = null;
+    setPendingCameraProduct(null);
+    setCameraMatchFeedback(false);
+    if (cameraFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(cameraFeedbackTimeoutRef.current);
+      cameraFeedbackTimeoutRef.current = null;
+    }
   };
 
-  const restoreInteractionAfterClose = () => {
-    restoreInteractionState();
-    window.setTimeout(restoreInteractionState, 0);
-    window.setTimeout(restoreInteractionState, 350);
+  const openCamera = async () => {
+    const requestId = ++cameraRequestRef.current;
+    lastCameraCodeRef.current = "";
+    cameraMissedFramesRef.current = 0;
+    pendingCameraProductRef.current = null;
+    setPendingCameraProduct(null);
+    setCameraMatchFeedback(false);
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      if (requestId !== cameraRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      setCameraStream(stream);
+    } catch (error) {
+      if (requestId === cameraRequestRef.current) {
+        setIsCameraOpen(false);
+        const details =
+          error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : String(error);
+        toast({
+          title: t("sales.camera_error"),
+          description: details,
+          variant: "destructive",
+        });
+      }
+    }
   };
+
+  useEffect(() => {
+    const video = cameraVideoRef.current;
+    if (!isCameraOpen || !cameraStream || !video) return;
+    video.srcObject = cameraStream;
+    let active = true;
+    void import("@zxing/browser")
+      .then(({ BrowserMultiFormatReader }) => {
+        if (!active) return;
+        const reader = new BrowserMultiFormatReader();
+        return reader
+          .decodeFromVideoElement(video, (result) => {
+            if (!active || pendingCameraProductRef.current) return;
+            if (!result) {
+              cameraMissedFramesRef.current += 1;
+              if (cameraMissedFramesRef.current >= 3) {
+                lastCameraCodeRef.current = "";
+              }
+              return;
+            }
+            cameraMissedFramesRef.current = 0;
+            const code = result.getText().trim();
+            if (code === lastCameraCodeRef.current) return;
+            lastCameraCodeRef.current = code;
+            const product = cameraBarcodeHandlerRef.current(code);
+            if (!product) return;
+            pendingCameraProductRef.current = product;
+            setPendingCameraProduct(product);
+            setCameraQuantity("1");
+            setCameraMatchFeedback(true);
+            if (cameraFeedbackTimeoutRef.current !== null) {
+              window.clearTimeout(cameraFeedbackTimeoutRef.current);
+              cameraFeedbackTimeoutRef.current = null;
+            }
+          })
+          .then((controls) => {
+            scannerControlsRef.current = controls;
+            if (!active) controls.stop();
+          });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
+      video.srcObject = null;
+    };
+  }, [isCameraOpen, cameraStream]);
+
+  useEffect(
+    () => () => cameraStream?.getTracks().forEach((track) => track.stop()),
+    [cameraStream],
+  );
 
   const handleCreateDialogOpenChange = (open: boolean) => {
+    if (!open) closeCamera();
     setIsCreateDialogOpen(open);
-    if (!open) {
-      setIsScannerOpen(false);
-      restoreInteractionAfterClose();
-    }
   };
 
   const closeExportLayers = () => {
     setExportMenuOpen(false);
     setIsPdfDialogOpen(false);
-    restoreInteractionState();
   };
 
   // Real clients/products will be loaded from backend
@@ -389,7 +475,13 @@ export default function Sales() {
   const { t, i18n } = useTranslation();
 
   const handleBarcodeScanned = useCallback(
-    (sku: string, addImmediately = false, quantity = 1) => {
+    (
+      sku: string,
+      addImmediately = false,
+      quantity = 1,
+      showNotFoundToast = true,
+      focusAfterScan = true,
+    ) => {
       const normalizedCode = sku.trim().toLowerCase();
       const product = products.find(
         (p) =>
@@ -397,12 +489,14 @@ export default function Sales() {
           p.barcode?.trim().toLowerCase() === normalizedCode,
       );
       if (!product) {
-        toast({
-          title: t("common.product_not_found"),
-          description: t("common.product_not_found_with_code", { code: sku }),
-          variant: "destructive",
-        });
-        return;
+        if (showNotFoundToast) {
+          toast({
+            title: t("common.product_not_found"),
+            description: t("common.product_not_found_with_code", { code: sku }),
+            variant: "destructive",
+          });
+        }
+        return false;
       }
 
       if (addImmediately && (!Number.isInteger(quantity) || quantity <= 0)) {
@@ -411,7 +505,7 @@ export default function Sales() {
           description: t("common.quantity_greater_than_zero"),
           variant: "destructive",
         });
-        return;
+        return false;
       }
 
       if (addImmediately && product.stock != null && quantity > product.stock) {
@@ -420,14 +514,14 @@ export default function Sales() {
           description: t("common.units_available", { count: product.stock }),
           variant: "destructive",
         });
-        return;
+        return true;
       }
 
       const wasDialogClosed = !isCreateDialogOpen;
 
       if (!addImmediately && isCreateDialogOpen && currentItemRef.current.productId) {
         const previousItemAdded = addItemToInvoice(currentItemRef.current);
-        if (!previousItemAdded) return;
+        if (!previousItemAdded) return false;
       }
 
       // Mark that a barcode was just scanned to prevent accidental invoice creation
@@ -448,120 +542,38 @@ export default function Sales() {
       };
 
       setCurrentItem(scannedItem);
-      if (addImmediately) {
-        addItemToInvoice(scannedItem);
-      }
+      if (addImmediately) addItemToInvoice(scannedItem);
 
       if (wasDialogClosed) {
         setIsCreateDialogOpen(true);
       }
 
-      window.setTimeout(() => {
-        if (!isMobile) {
-          desktopScannerInputRef.current?.focus();
-          return;
-        }
-        quantityInputRef.current?.focus();
-        quantityInputRef.current?.select();
-      }, wasDialogClosed ? 100 : 0);
+      if (focusAfterScan) {
+        window.setTimeout(() => {
+          if (!isMobile) {
+            desktopScannerInputRef.current?.focus();
+            return;
+          }
+          quantityInputRef.current?.focus();
+          quantityInputRef.current?.select();
+        }, wasDialogClosed ? 100 : 0);
+      }
+      return true;
     },
     [products, isCreateDialogOpen, isMobile, toast, t],
   );
+  cameraBarcodeHandlerRef.current = (code) =>
+    products.find(
+      (product) =>
+        product.sku?.trim().toLowerCase() === code.toLowerCase() ||
+        product.barcode?.trim().toLowerCase() === code.toLowerCase(),
+    );
 
-  useEffect(() => {
-    if (!isScannerOpen || scannerMode !== "camera") {
-      scannerControlsRef.current?.stop();
-      scannerControlsRef.current = null;
-      if (scannerVideoRef.current) {
-        scannerVideoRef.current.pause();
-        scannerVideoRef.current.srcObject = null;
-      }
-      return;
-    }
-
-    let cancelled = false;
-    const reader = new BrowserMultiFormatReader();
-    lastCameraScanRef.current = null;
-
-    const startScanner = async () => {
-      if (!window.isSecureContext) {
-        setScannerStatus("insecure");
-        return;
-      }
-
-      if (!navigator.mediaDevices?.getUserMedia || !scannerVideoRef.current) {
-        setScannerStatus("unsupported");
-        return;
-      }
-
-      try {
-        const controls = await reader.decodeFromConstraints(
-          {
-            video: { facingMode: { ideal: "environment" } },
-            audio: false,
-          },
-          scannerVideoRef.current,
-          (result) => {
-            const value = result?.getText().trim();
-            if (cancelled || !value) return;
-
-            const now = Date.now();
-            const lastScan = lastCameraScanRef.current;
-            if (lastScan?.code === value && now - lastScan.at < 1200) return;
-
-            lastCameraScanRef.current = { code: value, at: now };
-            handleBarcodeScanned(value, true, scanQuantityRef.current);
-            scanQuantityRef.current = 1;
-            setScanQuantity(1);
-          },
-        );
-        if (cancelled) {
-          controls.stop();
-          return;
-        }
-        scannerControlsRef.current = controls;
-        setScannerStatus("scanning");
-      } catch (error) {
-        if (!cancelled) {
-          setScannerStatus(
-            error instanceof DOMException && error.name === "NotAllowedError"
-              ? "denied"
-              : "error",
-          );
-        }
-      }
-    };
-
-    startScanner();
-    return () => {
-      cancelled = true;
-      scannerControlsRef.current?.stop();
-      scannerControlsRef.current = null;
-      if (scannerVideoRef.current) {
-        scannerVideoRef.current.pause();
-        scannerVideoRef.current.srcObject = null;
-      }
-    };
-  }, [isScannerOpen, scannerMode, scannerAttempt, handleBarcodeScanned]);
-
-  // Reset form state when dialog closes, and focus body when dialog opens to enable barcode scanning
+  // Reset form state when the invoice drawer closes.
   useEffect(() => {
     if (!isCreateDialogOpen) {
       clearNewInvoice();
-      autoScanStartedRef.current = false;
-      setIsScannerOpen(false);
-      const cleanupTimer = window.setTimeout(restoreInteractionAfterClose, 0);
-      return () => window.clearTimeout(cleanupTimer);
-    }
-
-    if (isMobile && !autoScanStartedRef.current) {
-      autoScanStartedRef.current = true;
-      scanQuantityRef.current = 1;
-      setScanQuantity(1);
-      setScannerMode("camera");
-      setManualProductSearch("");
-      setScannerStatus("starting");
-      setIsScannerOpen(true);
+      return;
     }
 
     const focusTimer = window.setTimeout(() => {
@@ -1460,8 +1472,6 @@ export default function Sales() {
     setShowCustomerDetails(false);
     setShowPaymentDetails(false);
     setShowNotes(false);
-    scanQuantityRef.current = 1;
-    setScanQuantity(1);
     setBorrowReturnDate(defaultReturnDate);
   };
 
@@ -1742,6 +1752,42 @@ export default function Sales() {
     return true;
   };
 
+  const addCameraProductToInvoice = () => {
+    const product = pendingCameraProductRef.current;
+    if (!product) return;
+
+    const quantity = Number(cameraQuantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      toast({
+        title: t("common.invalid_quantity"),
+        description: t("common.quantity_greater_than_zero"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const added = addItemToInvoice({
+      productId: product.id,
+      productName: product.name,
+      quantity,
+      unitPrice: product.unitPrice,
+      discount: 0,
+    });
+    if (!added) return;
+
+    pendingCameraProductRef.current = null;
+    setPendingCameraProduct(null);
+    setCameraQuantity("1");
+    setCameraMatchFeedback(true);
+    if (cameraFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(cameraFeedbackTimeoutRef.current);
+    }
+    cameraFeedbackTimeoutRef.current = window.setTimeout(
+      () => setCameraMatchFeedback(false),
+      800,
+    );
+  };
+
   const removeItemFromInvoice = (itemId: string) => {
     const item = newInvoice.items?.find((i) => i.id === itemId);
     const updatedItems = (newInvoice.items || []).filter(
@@ -1907,12 +1953,9 @@ export default function Sales() {
       };
 
       setInvoices([invoice, ...invoices]);
-      setIsScannerOpen(false);
-      setScannerMode("camera");
-      autoScanStartedRef.current = false;
+      closeCamera();
       clearNewInvoice();
       setIsCreateDialogOpen(false);
-      restoreInteractionAfterClose();
     } catch (e: any) {
       toast({
         title: "Failed",
@@ -2352,180 +2395,6 @@ export default function Sales() {
         aria-label="Barcode scanner input"
         className="fixed left-[-9999px] top-0 h-px w-px opacity-0"
       />
-      <Dialog
-        open={isScannerOpen}
-        onOpenChange={setIsScannerOpen}
-        modal={false}
-      >
-        <DialogContent
-          hideOverlay
-          className="z-[60] w-[calc(100vw-2rem)] max-w-md"
-          onPointerDownOutside={(event) => event.preventDefault()}
-          onInteractOutside={(event) => event.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {scannerMode === "camera" ? (
-                <Camera className="h-5 w-5" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-              {scannerMode === "camera" ? "Scan barcode" : "Search product"}
-            </DialogTitle>
-            <DialogDescription>
-              {scannerMode === "camera"
-                ? "Point your phone camera at a product barcode."
-                : "Find a product by name, SKU, or barcode."}
-            </DialogDescription>
-          </DialogHeader>
-          {scannerMode === "manual" ? (
-            <div className="space-y-3">
-              <Input
-                autoFocus
-                placeholder={t("sales.search_products_scanner")}
-                value={manualProductSearch}
-                onChange={(event) => setManualProductSearch(event.target.value)}
-              />
-              <div className="max-h-64 space-y-2 overflow-y-auto">
-                {products
-                  .filter((product) => {
-                    const query = manualProductSearch.trim().toLowerCase();
-                    if (!query) return true;
-                    return [product.name, product.sku, product.barcode]
-                      .filter(Boolean)
-                      .some((value) => value!.toLowerCase().includes(query));
-                  })
-                  .map((product) => (
-                    <button
-                      key={product.id}
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-muted"
-                      onClick={() => {
-                        const added = addItemToInvoice({
-                          productId: product.id,
-                          productName: product.name,
-                          quantity: scanQuantity,
-                          unitPrice: product.unitPrice,
-                          discount: 0,
-                        });
-                        if (added) {
-                          setManualProductSearch("");
-                          setIsScannerOpen(false);
-                        }
-                      }}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">{product.name}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {product.sku || product.barcode || ""}
-                        </span>
-                      </span>
-                      <span className="ml-3 shrink-0 text-sm font-medium">
-                        {product.unitPrice.toLocaleString()} TJS
-                      </span>
-                    </button>
-                  ))}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setScannerMode("camera");
-                  setScannerStatus("starting");
-                }}
-              >
-                <Camera className="mr-2 h-4 w-4" />
-                {t("sales.back_to_camera")}
-              </Button>
-            </div>
-          ) : scannerStatus === "starting" || scannerStatus === "scanning" ? (
-            <div className="space-y-4">
-              <div className="relative overflow-hidden rounded-lg bg-black aspect-video">
-                <video
-                  ref={scannerVideoRef}
-                  className="h-full w-full object-cover"
-                  playsInline
-                  autoPlay
-                  muted
-                />
-                <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 -translate-y-1/2 bg-primary shadow-[0_0_12px_hsl(var(--primary))]" />
-              </div>
-              <p className="text-center text-sm text-muted-foreground">
-                {scannerStatus === "starting" ? t("sales.starting_camera") : t("sales.scanning")}
-              </p>
-              <div className="flex items-end gap-2">
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor="scan-quantity" className="text-xs">
-                    Quantity for next scan
-                  </Label>
-                  <Input
-                    id="scan-quantity"
-                    type="number"
-                    min="1"
-                    inputMode="numeric"
-                    value={scanQuantity}
-                    onFocus={(event) => event.currentTarget.select()}
-                    onChange={(event) => {
-                      const next = event.target.value === "" ? 0 : parseInt(event.target.value, 10);
-                      scanQuantityRef.current = Number.isFinite(next) ? next : 0;
-                      setScanQuantity(Number.isFinite(next) ? next : 0);
-                    }}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setScannerMode("manual");
-                    setManualProductSearch("");
-                  }}
-                >
-                  {t("sales.search_manually")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 rounded-lg border p-4 text-sm">
-              <p className="text-muted-foreground">
-                {scannerStatus === "unsupported"
-                  ? t("sales.camera_unsupported")
-                  : scannerStatus === "denied"
-                    ? t("sales.camera_denied")
-                    : scannerStatus === "insecure"
-                      ? t("sales.camera_insecure")
-                      : t("sales.camera_error")}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  className="flex-1"
-                  onClick={() => {
-                    setScannerStatus("starting");
-                    setScannerAttempt((attempt) => attempt + 1);
-                  }}
-                >
-                  {t("sales.try_again")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setScannerMode("manual");
-                    setManualProductSearch("");
-                  }}
-                >
-                  {t("sales.search_manually")}
-                </Button>
-              </div>
-            </div>
-          )}
-          <Button type="button" variant="outline" onClick={() => setIsScannerOpen(false)}>
-            Done scanning
-          </Button>
-        </DialogContent>
-      </Dialog>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -2577,14 +2446,93 @@ export default function Sales() {
                   {t("sales.new_invoice")}
                 </Button>
               </DrawerTrigger>
-              <DrawerContent className="max-h-[90vh]">
+              <DrawerContent className="relative h-[90dvh] max-h-[90dvh] overflow-hidden">
+                {isCameraOpen && (
+                  <div className="absolute inset-0 z-50 bg-black" data-vaul-no-drag>
+                    <video
+                      ref={cameraVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div
+                        className={`relative h-44 w-[78%] max-w-sm rounded-2xl border-2 transition-colors duration-200 ${
+                          cameraMatchFeedback
+                            ? "border-emerald-400 bg-emerald-400/10 shadow-[0_0_24px_rgba(52,211,153,0.35)]"
+                            : "border-white/80"
+                        }`}
+                      >
+                        <div
+                          className={`absolute inset-x-3 top-1/2 h-0.5 -translate-y-1/2 ${
+                            cameraMatchFeedback ? "bg-emerald-300" : "bg-white/90"
+                          }`}
+                        />
+                      </div>
+                    </div>
+                    {pendingCameraProduct && (
+                      <div
+                        data-vaul-no-drag
+                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
+                      >
+                        <div className="truncate text-center text-base font-semibold text-foreground">
+                          {pendingCameraProduct.name}
+                        </div>
+                        <Label htmlFor="camera-quantity">
+                          {t("sales.quantity_to_add")}
+                        </Label>
+                        <Input
+                          ref={cameraQuantityInputRef}
+                          id="camera-quantity"
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          step="1"
+                          value={cameraQuantity}
+                          onChange={(event) => setCameraQuantity(event.target.value)}
+                          className="h-11 text-center text-lg font-semibold"
+                        />
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={addCameraProductToInvoice}
+                        >
+                          {t("sales.add_item")}
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      aria-label={t("common.close")}
+                      onClick={closeCamera}
+                      className="absolute right-4 top-4 z-10 rounded-full"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                )}
                 <DrawerHeader>
                   <DrawerTitle>{t("sales.create_new_invoice")}</DrawerTitle>
                   <DrawerDescription>
                     {t("sales.generate_invoice")}
                   </DrawerDescription>
                 </DrawerHeader>
-                <div className="px-4 pb-4 overflow-y-auto flex flex-col gap-6">
+                <div
+                  className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-4 flex flex-col gap-6"
+                  data-vaul-no-drag
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={openCamera}
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    {t("sales.open_camera")}
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -2782,24 +2730,7 @@ export default function Sales() {
                           <Label htmlFor="product">
                             {t("sales.select_product")} *
                           </Label>
-                          {isMobile && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 shrink-0"
-                              onClick={() => {
-                                setScannerMode("camera");
-                                setManualProductSearch("");
-                                setScannerStatus("starting");
-                                setScannerAttempt((attempt) => attempt + 1);
-                                setIsScannerOpen(true);
-                              }}
-                            >
-                              <Camera className="mr-1.5 h-4 w-4" />
-                              Scan barcode
-                            </Button>
-                          )}
+
                         </div>
                         <Select
                           value={currentItem.productId || ""}
@@ -3125,7 +3056,7 @@ export default function Sales() {
                     />
                   </div>
                 </div>
-                <DrawerFooter className="border-t bg-background/95 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
+                <DrawerFooter className="shrink-0 border-t bg-background/95 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
                   <Button
                     className="w-full"
                     onClick={createInvoice}
@@ -3139,6 +3070,7 @@ export default function Sales() {
                   <Button
                     variant="outline"
                     onClick={() => {
+                      closeCamera();
                       clearNewInvoice();
                       setIsCreateDialogOpen(false);
                     }}
@@ -3366,24 +3298,7 @@ export default function Sales() {
                           <Label htmlFor="product">
                             {t("sales.select_product")} *
                           </Label>
-                          {isMobile && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 shrink-0"
-                              onClick={() => {
-                                setScannerMode("camera");
-                                setManualProductSearch("");
-                                setScannerStatus("starting");
-                                setScannerAttempt((attempt) => attempt + 1);
-                                setIsScannerOpen(true);
-                              }}
-                            >
-                              <Camera className="mr-1.5 h-4 w-4" />
-                              Scan barcode
-                            </Button>
-                          )}
+
                         </div>
                         <Select
                           value={currentItem.productId || ""}

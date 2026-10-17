@@ -97,6 +97,7 @@ export default function UserManagement() {
   }, [loadUsers, toast]);
 
   const authUser = useAuthStore((s) => s.user);
+
   const scopedUsers =
     authUser?.role === "manager" && authUser?.filialId
       ? users.filter((u) => (u as any).filialId === authUser.filialId)

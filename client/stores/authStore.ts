@@ -95,8 +95,8 @@ export const useAuthStore = create<AuthState>()(
             };
             set({
               user,
-              accessToken: "mock-admin-token",
-              refreshToken: "mock-admin-refresh",
+              accessToken: null,
+              refreshToken: null,
               isAuthenticated: true,
               isLoading: false,
             });

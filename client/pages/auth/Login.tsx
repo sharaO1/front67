@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,15 +12,6 @@ import {
 } from "@/components/ui/card";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "@/hooks/use-toast";
-import { API_BASE, setApiBase } from "@/lib/api";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Eye,
   EyeOff,
@@ -28,7 +19,6 @@ import {
   Loader2,
   Lock,
   Mail,
-  Server,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -36,28 +26,10 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isServerDialogOpen, setIsServerDialogOpen] = useState(false);
-  const [serverAddress, setServerAddress] = useState(API_BASE);
   const { login, isLoading } = useAuthStore();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useTranslation();
-
-  const handleSaveServerAddress = () => {
-    try {
-      setApiBase(serverAddress);
-      window.location.reload();
-    } catch (error) {
-      toast({
-        title: t("common.error"),
-        description:
-          error instanceof Error
-            ? error.message
-            : "Enter a valid server address.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,43 +166,6 @@ export default function Login() {
                   )}
                 </Button>
               </form>
-
-              <Dialog
-                open={isServerDialogOpen}
-                onOpenChange={setIsServerDialogOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="mt-4 w-full text-sm text-gray-600"
-                  >
-                    <Server className="mr-2 h-4 w-4" />
-                    Server connection
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Server connection</DialogTitle>
-                    <DialogDescription>
-                      Set the backend API address for this device.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-2">
-                    <Label htmlFor="server-address">API address</Label>
-                    <Input
-                      id="server-address"
-                      type="url"
-                      value={serverAddress}
-                      onChange={(event) => setServerAddress(event.target.value)}
-                      placeholder="http://192.168.100.58:5002/api"
-                    />
-                  </div>
-                  <Button type="button" onClick={handleSaveServerAddress}>
-                    Save and reconnect
-                  </Button>
-                </DialogContent>
-              </Dialog>
 
               <div className="mt-6">
                 <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg hover:shadow-md transition-all duration-300">
