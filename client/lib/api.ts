@@ -1,11 +1,4 @@
-const API_BASE_STORAGE_KEY = "stockmind.api-base";
 const DEFAULT_API_BASE = "http://192.168.43.185:5002/api";
-
-if (typeof window !== "undefined") {
-  try {
-    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
-  } catch {}
-}
 
 export const API_BASE = DEFAULT_API_BASE;
 
