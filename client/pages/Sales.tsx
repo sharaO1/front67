@@ -2449,8 +2449,7 @@ export default function Sales() {
               onOpenChange={handleCreateDialogOpenChange}
               fixed
               repositionInputs={!isCameraOpen && !isCameraClosing}
-              shouldScaleBackground
-              setBackgroundColorOnScale={false}
+              shouldScaleBackground={false}
             >
               <DrawerTrigger asChild>
                 <Button title="F2 or Ctrl+N">
@@ -2459,7 +2458,7 @@ export default function Sales() {
                 </Button>
               </DrawerTrigger>
               <DrawerContent
-                overlayClassName="bg-transparent"
+                hideOverlay
                 className="relative h-[90dvh] max-h-[90dvh] overflow-hidden"
               >
                 <DrawerHeader>

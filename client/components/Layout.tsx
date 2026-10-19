@@ -157,10 +157,7 @@ export default function Layout({ children }: LayoutProps) {
   }, [sidebarOpen]);
 
   return (
-    <div
-      data-vaul-drawer-wrapper
-      className="min-h-screen bg-background overflow-x-hidden"
-    >
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Enhanced Sidebar with Glassmorphism */}
       <div
         className={cn(
@@ -387,7 +384,6 @@ export default function Layout({ children }: LayoutProps) {
       >
         {/* Enhanced Header */}
         <header
-          data-sales-layout-header
           className={cn(
             "sticky top-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border-b border-gray-200/50 dark:border-gray-700/50 shadow-business transition-transform duration-300 ease-in-out",
             !showHeader ? "-translate-y-full" : "translate-y-0",
