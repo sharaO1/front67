@@ -602,14 +602,6 @@ export default function Sales() {
   }, [isCreateDialogOpen, isMobile]);
 
   useEffect(() => {
-    if (!isMobile || !isCreateDialogOpen) return;
-    document.body.dataset.mobileInvoiceOpen = "true";
-    return () => {
-      delete document.body.dataset.mobileInvoiceOpen;
-    };
-  }, [isCreateDialogOpen, isMobile]);
-
-  useEffect(() => {
     if (isCreateDialogOpen || window.innerWidth < 640) return;
 
     const focusTimer = window.setTimeout(() => {
