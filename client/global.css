@@ -406,7 +406,11 @@
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
-body:has([data-vaul-drawer][data-state="open"]) [data-sales-layout-header] {
+body[data-mobile-invoice-open="true"] [data-sales-layout-header] {
   transform: translateY(0) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
   transition: none !important;
 }
