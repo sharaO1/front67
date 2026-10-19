@@ -2459,7 +2459,7 @@ export default function Sales() {
                 </Button>
               </DrawerTrigger>
               <DrawerContent
-                overlayClassName="bg-transparent"
+                overlayClassName="bg-black/35 backdrop-blur-sm"
                 className="relative h-[90dvh] max-h-[90dvh] overflow-hidden"
               >
                 <DrawerHeader>
