@@ -310,6 +310,7 @@ export default function Sales() {
   const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraOpenButtonRef = useRef<HTMLButtonElement | null>(null);
   const cameraQuantityInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
   const cameraBarcodeHandlerRef = useRef<(code: string) => Product | undefined>(() => undefined);
@@ -2441,10 +2442,11 @@ export default function Sales() {
           {isMobile ? (
             <>
             <Drawer
-              open={isCreateDialogOpen && !isCameraOpen && !isCameraClosing}
+              open={isCreateDialogOpen}
               onOpenChange={handleCreateDialogOpenChange}
               fixed
-              repositionInputs
+              repositionInputs={!isCameraOpen && !isCameraClosing}
+              shouldScaleBackground={false}
             >
               <DrawerTrigger asChild>
                 <Button title="F2 or Ctrl+N">
@@ -2453,7 +2455,7 @@ export default function Sales() {
                 </Button>
               </DrawerTrigger>
               <DrawerContent
-                overlayClassName="bg-black/35"
+                overlayClassName="bg-black/25"
                 className="relative h-[90dvh] max-h-[90dvh] overflow-hidden"
               >
                 <DrawerHeader>
@@ -2467,6 +2469,7 @@ export default function Sales() {
                   data-vaul-no-drag
                 >
                   <Button
+                    ref={cameraOpenButtonRef}
                     type="button"
                     variant="outline"
                     className="w-full"
@@ -3032,6 +3035,7 @@ export default function Sales() {
               <DialogContent
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
+                  cameraOpenButtonRef.current?.focus({ preventScroll: true });
                   setIsCameraClosing(false);
                 }}
                 className="fixed inset-0 left-0 top-0 z-[60] h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-0 bg-black p-0 data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:hidden"
