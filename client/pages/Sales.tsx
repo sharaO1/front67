@@ -305,7 +305,6 @@ export default function Sales() {
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraQuantity, setCameraQuantity] = useState("1");
-  const [cameraKeyboardOffset, setCameraKeyboardOffset] = useState(0);
   const [pendingCameraProduct, setPendingCameraProduct] = useState<Product | null>(null);
   const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -427,28 +426,6 @@ export default function Sales() {
     () => () => cameraStream?.getTracks().forEach((track) => track.stop()),
     [cameraStream],
   );
-
-  useEffect(() => {
-    if (!isCameraOpen || !window.visualViewport) return;
-    const viewport = window.visualViewport;
-    const updateKeyboardOffset = () => {
-      setCameraKeyboardOffset(
-        Math.max(
-          0,
-          Math.round(window.innerHeight - viewport.height - viewport.offsetTop),
-        ),
-      );
-    };
-    viewport.addEventListener("resize", updateKeyboardOffset);
-    viewport.addEventListener("scroll", updateKeyboardOffset);
-    window.addEventListener("resize", updateKeyboardOffset);
-    updateKeyboardOffset();
-    return () => {
-      viewport.removeEventListener("resize", updateKeyboardOffset);
-      viewport.removeEventListener("scroll", updateKeyboardOffset);
-      window.removeEventListener("resize", updateKeyboardOffset);
-    };
-  }, [isCameraOpen]);
 
   const handleCreateDialogOpenChange = (open: boolean) => {
     if (!open) closeCamera();
@@ -2462,6 +2439,8 @@ export default function Sales() {
             <Drawer
               open={isCreateDialogOpen}
               onOpenChange={handleCreateDialogOpenChange}
+              fixed
+              repositionInputs
             >
               <DrawerTrigger asChild>
                 <Button title="F2 or Ctrl+N">
@@ -2497,10 +2476,7 @@ export default function Sales() {
                     {pendingCameraProduct && (
                       <div
                         data-vaul-no-drag
-                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl transition-[bottom] duration-150"
-                        style={{
-                          bottom: `calc(${cameraKeyboardOffset}px + 1rem + env(safe-area-inset-bottom))`,
-                        }}
+                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
                       >
                         <div className="truncate text-center text-base font-semibold text-foreground">
                           {pendingCameraProduct.name}
