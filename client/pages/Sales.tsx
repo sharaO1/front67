@@ -304,6 +304,7 @@ export default function Sales() {
   const isMobile = useIsMobile();
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraClosing, setIsCameraClosing] = useState(false);
   const [cameraQuantity, setCameraQuantity] = useState("1");
   const [pendingCameraProduct, setPendingCameraProduct] = useState<Product | null>(null);
   const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
@@ -325,6 +326,7 @@ export default function Sales() {
   const productSelectTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const closeCamera = () => {
+    if (isCameraOpen) setIsCameraClosing(true);
     cameraRequestRef.current += 1;
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
@@ -341,6 +343,7 @@ export default function Sales() {
   };
 
   const openCamera = async () => {
+    setIsCameraClosing(false);
     const requestId = ++cameraRequestRef.current;
     lastCameraCodeRef.current = "";
     cameraMissedFramesRef.current = 0;
@@ -2438,7 +2441,7 @@ export default function Sales() {
           {isMobile ? (
             <>
             <Drawer
-              open={isCreateDialogOpen && !isCameraOpen}
+              open={isCreateDialogOpen && !isCameraOpen && !isCameraClosing}
               onOpenChange={handleCreateDialogOpenChange}
               fixed
               repositionInputs
@@ -2449,7 +2452,10 @@ export default function Sales() {
                   {t("sales.new_invoice")}
                 </Button>
               </DrawerTrigger>
-              <DrawerContent className="relative h-[90dvh] max-h-[90dvh] overflow-hidden">
+              <DrawerContent
+                overlayClassName="bg-black/35"
+                className="relative h-[90dvh] max-h-[90dvh] overflow-hidden"
+              >
                 <DrawerHeader>
                   <DrawerTitle>{t("sales.create_new_invoice")}</DrawerTitle>
                   <DrawerDescription>
@@ -3024,6 +3030,10 @@ export default function Sales() {
               }}
             >
               <DialogContent
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault();
+                  setIsCameraClosing(false);
+                }}
                 className="fixed inset-0 left-0 top-0 z-[60] h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-0 bg-black p-0 data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:hidden"
               >
                 <DialogTitle className="sr-only">{t("sales.open_camera")}</DialogTitle>
