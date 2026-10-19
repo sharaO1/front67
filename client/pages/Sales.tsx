@@ -2449,7 +2449,8 @@ export default function Sales() {
               onOpenChange={handleCreateDialogOpenChange}
               fixed
               repositionInputs={!isCameraOpen && !isCameraClosing}
-              shouldScaleBackground={false}
+              shouldScaleBackground
+              setBackgroundColorOnScale={false}
             >
               <DrawerTrigger asChild>
                 <Button title="F2 or Ctrl+N">
@@ -2459,7 +2460,7 @@ export default function Sales() {
               </DrawerTrigger>
               <DrawerContent
                 overlayClassName="bg-transparent"
-                className="relative h-[78dvh] max-h-[78dvh] overflow-hidden"
+                className="relative h-[90dvh] max-h-[90dvh] overflow-hidden"
               >
                 <DrawerHeader>
                   <DrawerTitle>{t("sales.create_new_invoice")}</DrawerTitle>
