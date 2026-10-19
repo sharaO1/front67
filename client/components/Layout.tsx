@@ -157,7 +157,10 @@ export default function Layout({ children }: LayoutProps) {
   }, [sidebarOpen]);
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div
+      data-vaul-drawer-wrapper
+      className="min-h-screen bg-background overflow-x-hidden"
+    >
       {/* Enhanced Sidebar with Glassmorphism */}
       <div
         className={cn(

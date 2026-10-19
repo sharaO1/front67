@@ -33,6 +33,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useChatStore, ChatMessage, EMPTY_MESSAGES } from "@/stores/chatStore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { API_BASE, joinApi } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 function formatMessage(t: string): string {
   if (!t) return "";
@@ -355,16 +356,17 @@ export default function AIChat({
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const userId = user?.id || "anon";
+  const { t } = useTranslation();
 
   const initialMessages = useMemo<ChatMessage[]>(
     () => [
       {
         id: "welcome-1",
         role: "ai",
-        text: "Hello! Welcome to your warehouse and business assistant. How can I help you today?",
+        text: t("ai_chat.welcome"),
       },
     ],
-    [],
+    [t],
   );
   const selectMessages = useMemo(
     () => (s: any) => s.messagesByUser?.[userId] ?? EMPTY_MESSAGES,
@@ -611,7 +613,7 @@ export default function AIChat({
                 m.id === aiId
                   ? {
                       ...m,
-                      text: "Failed connect to Network. Please check your Internet connection!!",
+                      text: t("ai_chat.connection_failure"),
                     }
                   : m,
               ),
@@ -623,7 +625,7 @@ export default function AIChat({
         setIsSending(false);
       }
     },
-    [input, isSending, isTyping, scrollToBottom, accessToken],
+    [input, isSending, isTyping, scrollToBottom, accessToken, t],
   );
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -665,6 +667,17 @@ export default function AIChat({
   const showFloatingButton =
     (variant === "floating" || page) && !isOpen && showTrigger;
   const containerFixed = isFullScreen || (variant === "floating" && isOpen);
+  const getDisplayedMessageText = (message: ChatMessage) => {
+    if (message.role !== "ai") return message.text;
+    if (message.id.startsWith("welcome-")) return t("ai_chat.welcome");
+    if (
+      message.text ===
+      "Failed connect to Network. Please check your Internet connection!!"
+    ) {
+      return t("ai_chat.connection_failure");
+    }
+    return message.text;
+  };
 
   // Always full-screen on mobile
   useEffect(() => {
@@ -875,7 +888,9 @@ export default function AIChat({
                             : "bg-white dark:bg-gray-800 border rounded-bl-md",
                         )}
                       >
-                        {m.role === "ai" ? renderMessageContent(m.text) : m.text}
+                        {m.role === "ai"
+                          ? renderMessageContent(getDisplayedMessageText(m))
+                          : m.text}
                       </div>
                       {m.role === "user" && (
                         <Avatar className="mt-1 h-8 w-8">

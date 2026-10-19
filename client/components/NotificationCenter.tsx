@@ -8,12 +8,20 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { API_BASE } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { getBranchStockStatus } from "@/lib/inventoryStock";
+
+type InventoryBranch = {
+  id: string;
+  name: string;
+  stock: number;
+};
 
 type InventoryProduct = {
   id: string;
   name: string;
   stock: number;
   minStock: number;
+  branches: InventoryBranch[];
 };
 
 type Notification = InventoryProduct & {
@@ -37,28 +45,63 @@ export default function NotificationCenter() {
   const user = useAuthStore((state) => state.user);
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState<InventoryProduct[]>([]);
+  const [branchNames, setBranchNames] = useState<Record<string, string>>({});
   const [readIds, setReadIds] = useState<string[]>([]);
 
   const normalizeProducts = useCallback(
     (result: any[]): InventoryProduct[] =>
-      result.map((product) => ({
-        id: String(product.id),
-        name: product.name || product.title || t("notifications.unknown_product"),
-        stock: getNumber(
-          product.stock,
-          product.count,
-          product.quantity,
-          product.stockQuantity,
-          product.inventory?.quantity,
-        ),
-        minStock: getNumber(
+      result.map((product) => {
+        const minStock = getNumber(
           product.minStock,
           product.min_stock,
           product.reorderPoint,
           product.reorder_point,
           product.settings?.minStock,
-        ),
-      })),
+        );
+        const rawBranches = Array.isArray(product.filials)
+          ? product.filials
+          : Array.isArray(product.stores)
+            ? product.stores
+            : [];
+        const branches = rawBranches
+          .map((branch: any) => {
+            const id = String(
+              branch.filialId ?? branch.id ?? branch.storeId ?? branch.branchId ?? "",
+            );
+            if (!id) return null;
+            return {
+              id,
+              name:
+                branch.filialName ||
+                branch.name ||
+                branch.storeName ||
+                branch.branchName ||
+                id,
+              stock: getNumber(
+                branch.count,
+                branch.quantity,
+                branch.stock,
+                branch.stockQuantity,
+                branch.inventory?.quantity,
+              ),
+            };
+          })
+          .filter((branch): branch is InventoryBranch => branch !== null);
+
+        return {
+          id: String(product.id),
+          name: product.name || product.title || t("notifications.unknown_product"),
+          stock: getNumber(
+            product.stock,
+            product.count,
+            product.quantity,
+            product.stockQuantity,
+            product.inventory?.quantity,
+          ),
+          minStock,
+          branches,
+        };
+      }),
     [t],
   );
 
@@ -72,6 +115,27 @@ export default function NotificationCenter() {
       setProducts([]);
     }
   }, [normalizeProducts]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch(`${API_BASE}/filials`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (!mounted || !Array.isArray(data?.result)) return;
+        setBranchNames(
+          data.result.reduce((names: Record<string, string>, branch: any) => {
+            const id = branch.id ?? branch.filialId ?? branch.storeId ?? branch.branchId;
+            const name = branch.name ?? branch.title ?? branch.filialName ?? branch.storeName ?? branch.branchName;
+            if (id != null && name) names[String(id)] = String(name);
+            return names;
+          }, {}),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof EventSource === "undefined") return;
@@ -106,15 +170,50 @@ export default function NotificationCenter() {
     return () => window.clearInterval(interval);
   }, [loadNotifications]);
 
+  const userIsBranchScoped = Boolean(
+    user && user.role !== "admin" && user.role !== "super_admin",
+  );
+  const userFilialId = userIsBranchScoped && user?.filialId
+    ? String(user.filialId)
+    : null;
+  const userFilialName = userIsBranchScoped
+    ? String(user?.location || "").toLowerCase().trim()
+    : "";
+  const hasBranchScope = Boolean(userFilialId || userFilialName);
+
   const notifications = useMemo<Notification[]>(
     () =>
       products
-        .filter((product) => product.stock === 0 || (product.minStock > 0 && product.stock <= product.minStock))
-        .map((product) => ({
-          ...product,
-          type: product.stock === 0 ? "out-of-stock" : "low-stock",
-        })),
-    [products],
+        .map((product) => {
+          const productBranches = product.branches.filter((branch) => {
+            if (!hasBranchScope) return true;
+            return (
+              (userFilialId && branch.id === userFilialId) ||
+              (userFilialName && branch.name.toLowerCase().trim() === userFilialName)
+            );
+          });
+          const branches = productBranches.filter((branch) =>
+            getBranchStockStatus(branch.stock, product.minStock),
+          );
+          const hasBranchData = product.branches.length > 0;
+          const aggregateStatus = getBranchStockStatus(
+            product.stock,
+            product.minStock,
+          );
+          if (hasBranchData ? branches.length === 0 : !aggregateStatus) {
+            return null;
+          }
+          const isOutOfStock = hasBranchData
+            ? branches.every((branch) => branch.stock <= 0)
+            : product.stock <= 0;
+          return {
+            ...product,
+            branches,
+            type: isOutOfStock ? "out-of-stock" : "low-stock",
+          };
+        })
+        .filter((notification): notification is Notification => notification !== null),
+    [products, hasBranchScope, userFilialId, userFilialName],
   );
 
   const unreadCount = notifications.filter((notification) => !readIds.includes(`${notification.type}:${notification.id}`)).length;
@@ -199,9 +298,33 @@ export default function NotificationCenter() {
                       {!isRead && <Badge className="h-5 px-1.5 text-[10px]">{t("notifications.new")}</Badge>}
                     </span>
                     <span className="mt-1 block truncate text-sm">{notification.name}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {t("notifications.stock_level", { count: notification.stock, minimum: notification.minStock })}
-                    </span>
+                    {notification.branches.length > 0 ? (
+                      <span className="mt-1 flex flex-col gap-1 text-xs text-muted-foreground">
+                        {notification.branches.map((branch) => {
+                          const status = getBranchStockStatus(
+                            branch.stock,
+                            notification.minStock,
+                          );
+                          return (
+                            <span key={branch.id} className="flex justify-between gap-2">
+                              <span className="truncate">{branchNames[branch.id] || branch.name}</span>
+                              <span className="shrink-0">
+                                {status === "out-of-stock"
+                                  ? t("notifications.out_of_stock")
+                                  : t("notifications.branch_stock_level", {
+                                      count: branch.stock,
+                                      minimum: notification.minStock,
+                                    })}
+                              </span>
+                            </span>
+                          );
+                        })}
+                      </span>
+                    ) : (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {t("notifications.stock_level", { count: notification.stock, minimum: notification.minStock })}
+                      </span>
+                    )}
                   </span>
                 </button>
               );
