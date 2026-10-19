@@ -2436,8 +2436,9 @@ export default function Sales() {
           </DropdownMenu>
 
           {isMobile ? (
+            <>
             <Drawer
-              open={isCreateDialogOpen}
+              open={isCreateDialogOpen && !isCameraOpen}
               onOpenChange={handleCreateDialogOpenChange}
               fixed
               repositionInputs
@@ -2449,73 +2450,6 @@ export default function Sales() {
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="relative h-[90dvh] max-h-[90dvh] overflow-hidden">
-                {isCameraOpen && (
-                  <div className="absolute inset-0 z-50 bg-black" data-vaul-no-drag>
-                    <video
-                      ref={cameraVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div
-                        className={`relative h-44 w-[78%] max-w-sm rounded-2xl border-2 transition-colors duration-200 ${
-                          cameraMatchFeedback
-                            ? "border-emerald-400 bg-emerald-400/10 shadow-[0_0_24px_rgba(52,211,153,0.35)]"
-                            : "border-white/80"
-                        }`}
-                      >
-                        <div
-                          className={`absolute inset-x-3 top-1/2 h-0.5 -translate-y-1/2 ${
-                            cameraMatchFeedback ? "bg-emerald-300" : "bg-white/90"
-                          }`}
-                        />
-                      </div>
-                    </div>
-                    {pendingCameraProduct && (
-                      <div
-                        data-vaul-no-drag
-                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
-                      >
-                        <div className="truncate text-center text-base font-semibold text-foreground">
-                          {pendingCameraProduct.name}
-                        </div>
-                        <Label htmlFor="camera-quantity">
-                          {t("sales.quantity_to_add")}
-                        </Label>
-                        <Input
-                          ref={cameraQuantityInputRef}
-                          id="camera-quantity"
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          step="1"
-                          value={cameraQuantity}
-                          onChange={(event) => setCameraQuantity(event.target.value)}
-                          className="h-11 text-center text-lg font-semibold"
-                        />
-                        <Button
-                          type="button"
-                          className="w-full"
-                          onClick={addCameraProductToInvoice}
-                        >
-                          {t("sales.add_item")}
-                        </Button>
-                      </div>
-                    )}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="icon"
-                      aria-label={t("common.close")}
-                      onClick={closeCamera}
-                      className="absolute right-4 top-4 z-10 rounded-full"
-                    >
-                      <X className="h-5 w-5" />
-                    </Button>
-                  </div>
-                )}
                 <DrawerHeader>
                   <DrawerTitle>{t("sales.create_new_invoice")}</DrawerTitle>
                   <DrawerDescription>
@@ -3083,6 +3017,81 @@ export default function Sales() {
                 </DrawerFooter>
               </DrawerContent>
             </Drawer>
+            <Dialog
+              open={isCameraOpen}
+              onOpenChange={(open) => {
+                if (!open) closeCamera();
+              }}
+            >
+              <DialogContent
+                className="fixed inset-0 left-0 top-0 z-[60] h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-0 bg-black p-0 data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:hidden"
+              >
+                <DialogTitle className="sr-only">{t("sales.open_camera")}</DialogTitle>
+                <div className="relative h-full w-full bg-black" data-vaul-no-drag>
+                  <video
+                    ref={cameraVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div
+                      className={`relative h-44 w-[78%] max-w-sm rounded-2xl border-2 transition-colors duration-200 ${
+                        cameraMatchFeedback
+                          ? "border-emerald-400 bg-emerald-400/10 shadow-[0_0_24px_rgba(52,211,153,0.35)]"
+                          : "border-white/80"
+                      }`}
+                    >
+                      <div
+                        className={`absolute inset-x-3 top-1/2 h-0.5 -translate-y-1/2 ${
+                          cameraMatchFeedback ? "bg-emerald-300" : "bg-white/90"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  {pendingCameraProduct && (
+                    <div className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl">
+                      <div className="truncate text-center text-base font-semibold text-foreground">
+                        {pendingCameraProduct.name}
+                      </div>
+                      <Label htmlFor="camera-quantity">
+                        {t("sales.quantity_to_add")}
+                      </Label>
+                      <Input
+                        ref={cameraQuantityInputRef}
+                        id="camera-quantity"
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        step="1"
+                        value={cameraQuantity}
+                        onChange={(event) => setCameraQuantity(event.target.value)}
+                        className="h-11 text-center text-lg font-semibold"
+                      />
+                      <Button
+                        type="button"
+                        className="w-full"
+                        onClick={addCameraProductToInvoice}
+                      >
+                        {t("sales.add_item")}
+                      </Button>
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    aria-label={t("common.close")}
+                    onClick={closeCamera}
+                    className="absolute right-4 top-4 z-10 rounded-full"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            </>
           ) : (
             <Dialog
               open={isCreateDialogOpen}
