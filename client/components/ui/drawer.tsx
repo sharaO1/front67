@@ -35,27 +35,32 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 type DrawerContentProps =
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
     hideOverlay?: boolean;
+    inline?: boolean;
   };
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, hideOverlay = false, children, ...props }, ref) => (
-  <DrawerPortal>
-    {!hideOverlay && <DrawerOverlay />}
-    <DrawerPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
-        className,
-      )}
-      {...props}
-    >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-));
+>(({ className, hideOverlay = false, inline = false, children, ...props }, ref) => {
+  const content = (
+    <>
+      {!hideOverlay && <DrawerOverlay />}
+      <DrawerPrimitive.Content
+        ref={ref}
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+          className,
+        )}
+        {...props}
+      >
+        <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+        {children}
+      </DrawerPrimitive.Content>
+    </>
+  );
+
+  return inline ? content : <DrawerPortal>{content}</DrawerPortal>;
+});
 DrawerContent.displayName = "DrawerContent";
 
 const DrawerHeader = ({
