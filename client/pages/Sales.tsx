@@ -305,6 +305,7 @@ export default function Sales() {
   const [barcodeBuffer, setBarcodeBuffer] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraQuantity, setCameraQuantity] = useState("1");
+  const [cameraKeyboardOffset, setCameraKeyboardOffset] = useState(0);
   const [pendingCameraProduct, setPendingCameraProduct] = useState<Product | null>(null);
   const [cameraMatchFeedback, setCameraMatchFeedback] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -426,6 +427,28 @@ export default function Sales() {
     () => () => cameraStream?.getTracks().forEach((track) => track.stop()),
     [cameraStream],
   );
+
+  useEffect(() => {
+    if (!isCameraOpen || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const updateKeyboardOffset = () => {
+      setCameraKeyboardOffset(
+        Math.max(
+          0,
+          Math.round(window.innerHeight - viewport.height - viewport.offsetTop),
+        ),
+      );
+    };
+    viewport.addEventListener("resize", updateKeyboardOffset);
+    viewport.addEventListener("scroll", updateKeyboardOffset);
+    window.addEventListener("resize", updateKeyboardOffset);
+    updateKeyboardOffset();
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardOffset);
+      viewport.removeEventListener("scroll", updateKeyboardOffset);
+      window.removeEventListener("resize", updateKeyboardOffset);
+    };
+  }, [isCameraOpen]);
 
   const handleCreateDialogOpenChange = (open: boolean) => {
     if (!open) closeCamera();
@@ -2474,7 +2497,10 @@ export default function Sales() {
                     {pendingCameraProduct && (
                       <div
                         data-vaul-no-drag
-                        className="absolute left-1/2 top-[calc(env(safe-area-inset-top)+4.5rem)] z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
+                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl transition-[bottom] duration-150"
+                        style={{
+                          bottom: `calc(${cameraKeyboardOffset}px + 1rem + env(safe-area-inset-bottom))`,
+                        }}
                       >
                         <div className="truncate text-center text-base font-semibold text-foreground">
                           {pendingCameraProduct.name}
@@ -2482,26 +2508,24 @@ export default function Sales() {
                         <Label htmlFor="camera-quantity">
                           {t("sales.quantity_to_add")}
                         </Label>
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-                          <Input
-                            ref={cameraQuantityInputRef}
-                            id="camera-quantity"
-                            type="number"
-                            inputMode="numeric"
-                            min="1"
-                            step="1"
-                            value={cameraQuantity}
-                            onChange={(event) => setCameraQuantity(event.target.value)}
-                            className="h-11 min-w-0 text-center text-lg font-semibold"
-                          />
-                          <Button
-                            type="button"
-                            className="h-11 shrink-0 px-3 text-sm"
-                            onClick={addCameraProductToInvoice}
-                          >
-                            {t("sales.add_item")}
-                          </Button>
-                        </div>
+                        <Input
+                          ref={cameraQuantityInputRef}
+                          id="camera-quantity"
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          step="1"
+                          value={cameraQuantity}
+                          onChange={(event) => setCameraQuantity(event.target.value)}
+                          className="h-11 text-center text-lg font-semibold"
+                        />
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={addCameraProductToInvoice}
+                        >
+                          {t("sales.add_item")}
+                        </Button>
                       </div>
                     )}
                     <Button
