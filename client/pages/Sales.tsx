@@ -311,6 +311,7 @@ export default function Sales() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const cameraOpenButtonRef = useRef<HTMLButtonElement | null>(null);
+  const cameraSessionRef = useRef(false);
   const cameraQuantityInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null);
   const cameraBarcodeHandlerRef = useRef<(code: string) => Product | undefined>(() => undefined);
@@ -344,6 +345,7 @@ export default function Sales() {
   };
 
   const openCamera = async () => {
+    cameraSessionRef.current = true;
     setIsCameraClosing(false);
     const requestId = ++cameraRequestRef.current;
     lastCameraCodeRef.current = "";
@@ -432,6 +434,7 @@ export default function Sales() {
   );
 
   const handleCreateDialogOpenChange = (open: boolean) => {
+    if (!open && cameraSessionRef.current) return;
     if (!open) closeCamera();
     setIsCreateDialogOpen(open);
   };
@@ -3036,6 +3039,7 @@ export default function Sales() {
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
                   cameraOpenButtonRef.current?.focus({ preventScroll: true });
+                  cameraSessionRef.current = false;
                   setIsCameraClosing(false);
                 }}
                 className="fixed inset-0 left-0 top-0 z-[60] h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-0 bg-black p-0 data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:hidden"
