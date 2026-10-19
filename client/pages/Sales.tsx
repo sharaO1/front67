@@ -2449,7 +2449,8 @@ export default function Sales() {
               onOpenChange={handleCreateDialogOpenChange}
               fixed
               repositionInputs={!isCameraOpen && !isCameraClosing}
-              shouldScaleBackground={false}
+              shouldScaleBackground
+              setBackgroundColorOnScale={false}
             >
               <DrawerTrigger asChild>
                 <Button title="F2 or Ctrl+N">

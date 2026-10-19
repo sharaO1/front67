@@ -405,3 +405,8 @@
 .mobile-main-content {
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
+
+body:has([data-vaul-drawer][data-state="open"]) [data-sales-layout-header] {
+  transform: translateY(0) !important;
+  transition: none !important;
+}
