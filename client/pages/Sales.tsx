@@ -2474,7 +2474,7 @@ export default function Sales() {
                     {pendingCameraProduct && (
                       <div
                         data-vaul-no-drag
-                        className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
+                        className="absolute left-1/2 top-[calc(env(safe-area-inset-top)+4.5rem)] z-10 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 space-y-3 rounded-xl bg-background p-4 shadow-xl"
                       >
                         <div className="truncate text-center text-base font-semibold text-foreground">
                           {pendingCameraProduct.name}
@@ -2482,24 +2482,26 @@ export default function Sales() {
                         <Label htmlFor="camera-quantity">
                           {t("sales.quantity_to_add")}
                         </Label>
-                        <Input
-                          ref={cameraQuantityInputRef}
-                          id="camera-quantity"
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          step="1"
-                          value={cameraQuantity}
-                          onChange={(event) => setCameraQuantity(event.target.value)}
-                          className="h-11 text-center text-lg font-semibold"
-                        />
-                        <Button
-                          type="button"
-                          className="w-full"
-                          onClick={addCameraProductToInvoice}
-                        >
-                          {t("sales.add_item")}
-                        </Button>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                          <Input
+                            ref={cameraQuantityInputRef}
+                            id="camera-quantity"
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            step="1"
+                            value={cameraQuantity}
+                            onChange={(event) => setCameraQuantity(event.target.value)}
+                            className="h-11 min-w-0 text-center text-lg font-semibold"
+                          />
+                          <Button
+                            type="button"
+                            className="h-11 shrink-0 px-3 text-sm"
+                            onClick={addCameraProductToInvoice}
+                          >
+                            {t("sales.add_item")}
+                          </Button>
+                        </div>
                       </div>
                     )}
                     <Button
